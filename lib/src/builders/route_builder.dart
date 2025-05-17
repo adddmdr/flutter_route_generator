@@ -1,39 +1,32 @@
-import 'package:flutter_route_generator/flutter_route_generator.dart';
+import 'package:flutter/material.dart';
+import '../models/screen_config.dart';
 
 class RouteBuilder {
-  static dynamic onGenerateRoute(dynamic settings) {
-    // This is a placeholder - in the build_runner generated code, this will connect
-    // to actual routing implementation
+  // This method will be implemented by the generated code
+  static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     throw UnimplementedError(
         'RouteBuilder.onGenerateRoute is not implemented - run build_runner to generate implementation');
   }
 
-  static void push(dynamic context, ScreenConfig screenConfig, dynamic args) {
-    // This is a placeholder - in the build_runner generated code, this will connect
-    // to actual Navigator.push with the right screen and arguments
+  // All navigation methods now consistently use Type instead of ScreenConfig
+  static void push(BuildContext context, Type screenType, {dynamic args}) {
     throw UnimplementedError(
         'RouteBuilder.push is not implemented - run build_runner to generate implementation');
   }
 
-  static void pushReplacement(
-      dynamic context, ScreenConfig screenConfig, dynamic args) {
-    // This is a placeholder - in the build_runner generated code, this will connect
-    // to actual Navigator.pushReplacement with the right screen and arguments
+  static void pushReplacement(BuildContext context, Type screenType,
+      {dynamic args}) {
     throw UnimplementedError(
         'RouteBuilder.pushReplacement is not implemented - run build_runner to generate implementation');
   }
 
-  static void pushAndRemoveUntil(
-      dynamic context, ScreenConfig screenConfig, dynamic args) {
-    // This is a placeholder - in the build_runner generated code, this will connect
-    // to actual Navigator.pushAndRemoveUntil with the right screen and arguments
+  static void pushAndRemoveUntil(BuildContext context, Type screenType,
+      {dynamic args}) {
     throw UnimplementedError(
         'RouteBuilder.pushAndRemoveUntil is not implemented - run build_runner to generate implementation');
   }
 
-  static void pop<T>(dynamic context, [T? result]) {
-    // This is a placeholder - in the build_runner generated code, this will connect
-    // to actual Navigator.pop with the right context and result
+  static void pop<T>(BuildContext context, [T? result]) {
     throw UnimplementedError(
         'RouteBuilder.pop is not implemented - run build_runner to generate implementation');
   }

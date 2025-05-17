@@ -1,5 +1,7 @@
-import 'package:flutter_route_generator/flutter_route_generator.dart';
-import 'package:flutter_route_generator/src/models/screen_config.dart';
+// lib/src/models/route_config.dart
+import 'package:flutter/material.dart';
+import 'screen_config.dart';
+import '../builders/route_builder.dart';
 
 class RouteConfig {
   final List<ScreenConfig> screenConfigs;
@@ -26,28 +28,32 @@ class RouteConfig {
     }
   }
 
-  void push(dynamic context, Type screenType, {dynamic args}) {
+  void push(BuildContext context, Type screenType, {dynamic args}) {
     final screenConfig = getScreenConfigByType(screenType);
     if (screenConfig != null) {
-      RouteBuilder.push(context, screenConfig, args);
+      // Fixed: Pass Type (screenType) instead of ScreenConfig
+      RouteBuilder.push(context, screenType, args: args);
     }
   }
 
-  void pushReplacement(dynamic context, Type screenType, {dynamic args}) {
+  void pushReplacement(BuildContext context, Type screenType, {dynamic args}) {
     final screenConfig = getScreenConfigByType(screenType);
     if (screenConfig != null) {
-      RouteBuilder.pushReplacement(context, screenConfig, args);
+      // Fixed: Pass Type (screenType) instead of ScreenConfig
+      RouteBuilder.pushReplacement(context, screenType, args: args);
     }
   }
 
-  void pushAndRemoveUntil(dynamic context, Type screenType, {dynamic args}) {
+  void pushAndRemoveUntil(BuildContext context, Type screenType,
+      {dynamic args}) {
     final screenConfig = getScreenConfigByType(screenType);
     if (screenConfig != null) {
-      RouteBuilder.pushAndRemoveUntil(context, screenConfig, args);
+      // Fixed: Pass Type (screenType) instead of ScreenConfig
+      RouteBuilder.pushAndRemoveUntil(context, screenType, args: args);
     }
   }
 
-  void pop<T>(dynamic context, [T? result]) {
+  void pop<T>(BuildContext context, [T? result]) {
     RouteBuilder.pop(context, result);
   }
 }
