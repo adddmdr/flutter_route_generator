@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/screen_config.dart';
 
 class RouteBuilder {
   // This method will be implemented by the generated code
