@@ -8,9 +8,9 @@ A simple and flexible route generation package for Flutter applications that eli
 - ✅ Type-safe navigation with compile-time checking
 - ✅ Support for arguments passing with type safety
 - ✅ Extension methods for cleaner navigation code
-- ✅ Supports initial routes and required arguments
-- ✅ Centralized navigation system with no conflicts
 - ✅ Auto-discovery of route configurations anywhere in your project
+- ✅ Customizable fallback route for unmatched routes
+- ✅ No manual configuration required
 
 ## Installation
 
@@ -41,7 +41,7 @@ targets:
             - "**.routes.dart"
             - "**.g.dart"
       
-      # Configure the auto-discovery route generator
+      # Configure the route generator
       flutter_route_generator|route_generator:
         enabled: true
         generate_for:
@@ -118,11 +118,26 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize routes with all your screen configurations
-  await Routes.initialize([
-    ...AppRoutes.screenConfigs,
-    ...AuthRoutes.screenConfigs,
-    ...DashboardRoutes.screenConfigs,
-  ]);
+  // Optionally provide a fallback route configuration
+  await Routes.initialize(
+    [
+      ...AppRoutes.screenConfigs,
+      ...AuthRoutes.screenConfigs,
+      ...DashboardRoutes.screenConfigs,
+    ],
+    fallbackRouteConfig: FallbackRouteConfig(
+      builder: (context, routeName) => Scaffold(
+        appBar: AppBar(title: const Text('Not Found')),
+        body: Center(
+          child: Text('The route "$routeName" was not found.'),
+        ),
+      ),
+      // Optional custom transition animation
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+    ),
+  );
   
   runApp(const MyApp());
 }
@@ -138,31 +153,7 @@ class MyApp extends StatelessWidget {
       title: 'Route Generator Example',
       theme: ThemeData(primarySwatch: Colors.blue),
       initialRoute: initialScreen?.path,
-      onGenerateRoute: (settings) {
-        // Try each route generator in order
-        Route? route;
-        
-        // First try app routes
-        route = appRouteGenerator(settings);
-        if (route != null) return route;
-        
-        // Then try auth routes
-        route = generateAuthRoutesRoutes(settings);
-        if (route != null) return route;
-        
-        // Then try dashboard routes
-        route = generateDashboardRoutesRoutes(settings);
-        if (route != null) return route;
-        
-        // Fallback route
-        return MaterialPageRoute(
-          settings: settings,
-          builder: (context) => Scaffold(
-            appBar: AppBar(title: const Text('Page Not Found')),
-            body: Center(child: Text('Route "${settings.name}" not found')),
-          ),
-        );
-      },
+      onGenerateRoute: appRouteGenerator,
     );
   }
 }
@@ -249,6 +240,8 @@ context.pop();
 
 ## Configuration Options
 
+### ScreenConfig Options
+
 The `ScreenConfig` class supports the following options:
 
 - `screenType`: The type of the screen widget (required)
@@ -257,9 +250,17 @@ The `ScreenConfig` class supports the following options:
 - `isInitial`: Whether this is the initial screen (optional, defaults to false)
 - `requiresArgs`: Whether arguments are required (optional, defaults to false)
 
+### FallbackRouteConfig Options
+
+The `FallbackRouteConfig` class allows you to customize the fallback route:
+
+- `builder`: Function that builds the screen widget (required)
+- `transitionsBuilder`: Custom transition animation (optional)
+- `maintainState`: Whether to maintain state when navigating away (optional, defaults to true)
+
 ## Auto-Discovery Details
 
-The auto-discovery feature automatically:
+The built-in auto-discovery feature:
 
 1. **Finds all @routeConfig classes** in your project
 2. **Generates route implementations** for each configuration
@@ -272,7 +273,7 @@ Benefits:
 
 ## How It Works
 
-The package scans your entire project for classes annotated with `@routeConfig`, then generates the necessary route implementation files. The navigation system uses the Routes class and context extensions to provide a clean, type-safe API for navigation.
+The package scans your entire project for classes annotated with `@routeConfig`, then generates the necessary route implementation files. Each route generator includes fallback handling, and the navigation system uses the Routes class and context extensions to provide a clean, type-safe API for navigation.
 
 ## Architecture
 
