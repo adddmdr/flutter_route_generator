@@ -50,10 +50,8 @@ class RouteGeneratorBuilder implements Builder {
           '// **************************************************************************');
       generatedCode.writeln();
 
-      // Add imports
+      // Add imports - only the essential ones
       generatedCode.writeln("import 'package:flutter/material.dart';");
-      generatedCode.writeln(
-          "import 'package:flutter_route_generator/flutter_route_generator.dart';");
 
       // Extract and add all imports from the original file to ensure screens are available
       final imports = <String>{};
@@ -70,9 +68,6 @@ class RouteGeneratorBuilder implements Builder {
       } catch (e) {
         print('Error extracting imports: $e');
       }
-
-      // Import the file that contains the AppRoutes class
-      generatedCode.writeln("import '${inputId.uri.pathSegments.last}';");
 
       // Add all the imports to the generated file
       for (final import in imports) {
@@ -133,8 +128,7 @@ class RouteGeneratorBuilder implements Builder {
 
         // Generate completely standalone route code
         if (screens.isNotEmpty) {
-          generatedCode
-              .writeln(_generateStandaloneRouteCode(screens, element.name));
+          generatedCode.writeln(_generateRouteOnlyCode(screens));
         }
       }
 
@@ -156,12 +150,11 @@ class RouteGeneratorBuilder implements Builder {
     }
   }
 
-  String _generateStandaloneRouteCode(
-      List<_ScreenConfig> screens, String className) {
+  String _generateRouteOnlyCode(List<_ScreenConfig> screens) {
     final buffer = StringBuffer();
 
     buffer.writeln('''
-// Routes generated from $className
+// Route generator function
 Route<dynamic>? appRouteGenerator(RouteSettings settings) {
   final routeName = settings.name;
   final arguments = settings.arguments;
@@ -208,71 +201,7 @@ Route<dynamic>? appRouteGenerator(RouteSettings settings) {
         ),
       );
   }
-}
-
-// Create a RouteConfig wrapper for easier access to the routes
-final routeConfig = RouteConfig($className.screenConfigs);
-
-// Navigation extension - completely standalone implementation
-extension NavigationExtension on BuildContext {
-  void push(Type screenType, {dynamic args}) {
-    final screenConfig = _findScreenConfig(screenType);
-    
-    // Check if args are required but not provided
-    if (screenConfig.requiresArgs && args == null) {
-      throw ArgumentError('Screen \${screenType} requires arguments but none were provided');
-    }
-    
-    Navigator.of(this).pushNamed(
-      screenConfig.routeName,
-      arguments: args,
-    );
-  }
-
-  void pushReplacement(Type screenType, {dynamic args}) {
-    final screenConfig = _findScreenConfig(screenType);
-    
-    // Check if args are required but not provided
-    if (screenConfig.requiresArgs && args == null) {
-      throw ArgumentError('Screen \${screenType} requires arguments but none were provided');
-    }
-    
-    Navigator.of(this).pushReplacementNamed(
-      screenConfig.routeName,
-      arguments: args,
-    );
-  }
-
-  void pushAndRemoveUntil(Type screenType, {dynamic args}) {
-    final screenConfig = _findScreenConfig(screenType);
-    
-    // Check if args are required but not provided
-    if (screenConfig.requiresArgs && args == null) {
-      throw ArgumentError('Screen \${screenType} requires arguments but none were provided');
-    }
-    
-    Navigator.of(this).pushNamedAndRemoveUntil(
-      screenConfig.routeName,
-      (route) => false,
-      arguments: args,
-    );
-  }
-
-  void pop<T>([T? result]) {
-    Navigator.of(this).pop(result);
-  }
-  
-  ScreenConfig _findScreenConfig(Type screenType) {
-    try {
-      return routeConfig.screenConfigs.firstWhere(
-        (config) => config.screenType == screenType
-      );
-    } catch (e) {
-      throw Exception('Screen \${screenType} not found in route configurations');
-    }
-  }
-}
-''');
+}''');
 
     return buffer.toString();
   }
