@@ -1,5 +1,3 @@
-// Updated route_generator_builder.dart with standalone implementation that doesn't use RouteBuilder
-
 import 'dart:async';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -72,6 +70,9 @@ class RouteGeneratorBuilder implements Builder {
       } catch (e) {
         print('Error extracting imports: $e');
       }
+
+      // Import the file that contains the AppRoutes class
+      generatedCode.writeln("import '${inputId.uri.pathSegments.last}';");
 
       // Add all the imports to the generated file
       for (final import in imports) {
@@ -209,6 +210,9 @@ Route<dynamic>? appRouteGenerator(RouteSettings settings) {
   }
 }
 
+// Create a RouteConfig wrapper for easier access to the routes
+final routeConfig = RouteConfig($className.screenConfigs);
+
 // Navigation extension - completely standalone implementation
 extension NavigationExtension on BuildContext {
   void push(Type screenType, {dynamic args}) {
@@ -260,7 +264,7 @@ extension NavigationExtension on BuildContext {
   
   ScreenConfig _findScreenConfig(Type screenType) {
     try {
-      return Routes.routeConfig.screenConfigs.firstWhere(
+      return routeConfig.screenConfigs.firstWhere(
         (config) => config.screenType == screenType
       );
     } catch (e) {
