@@ -1,11 +1,3 @@
-targets:
-  $default:
-    builders:
-      flutter_route_generator|route_generator:
-        enabled: true
-        generate_for:
-          - lib/**.dart
-
 builders:
   route_generator:
     import: "package:flutter_route_generator/builder.dart"
@@ -14,3 +6,11 @@ builders:
     auto_apply: dependents
     build_to: source
     applies_builders: ["source_gen|combining_builder"]
+
+targets:
+  $default:
+    builders:
+      flutter_route_generator|route_generator:
+        enabled: true
+        generate_for:
+          - lib/**.dart
