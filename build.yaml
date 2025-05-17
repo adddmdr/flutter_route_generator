@@ -1,8 +1,16 @@
+targets:
+  $default:
+    builders:
+      flutter_route_generator|route_generator:
+        enabled: true
+        generate_for:
+          - lib/**.dart
+
 builders:
-  routeBuilder:
-    import: "package:flutter_route_generator/src/builders/route_builder.dart"
-    builder_factories: ["routeBuilder"]
-    build_extensions: {".dart": [".route.g.dart"]}
+  route_generator:
+    import: "package:flutter_route_generator/builder.dart"
+    builder_factories: ["routeGeneratorFactory"]
+    build_extensions: {".dart": [".g.dart"]}
     auto_apply: dependents
     build_to: source
     applies_builders: ["source_gen|combining_builder"]

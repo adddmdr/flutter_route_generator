@@ -1,93 +1,40 @@
-import 'package:analyzer/dart/element/element.dart';
-import 'package:build/build.dart';
-import 'package:flutter_route_generator/src/generators/route_generator.dart';
-import 'package:glob/glob.dart';
-import 'package:source_gen/source_gen.dart';
+import 'package:flutter_route_generator/flutter_route_generator.dart';
 
-/// Builder for generating routes
-Builder routeBuilder(BuilderOptions options) => RouteBuilder();
-
-/// Route builder implementation
-class RouteBuilder implements Builder {
-  @override
-  Map<String, List<String>> get buildExtensions => {
-        r'$lib$': ['routes.g.dart']
-      };
-
-  @override
-  Future<void> build(BuildStep buildStep) async {
-    // Find all Dart files in the 'screens' directory
-    final screenFiles =
-        await buildStep.findAssets(Glob('lib/screens/**.dart')).toList();
-
-    // Find all argument files
-    final argFiles =
-        await buildStep.findAssets(Glob('lib/arguments/**.dart')).toList();
-
-    // Map of screen names to their argument class names
-    final Map<String, String?> screenToArgs = {};
-
-    // Extract screen class names
-    for (final screenFile in screenFiles) {
-      final library = await buildStep.resolver.libraryFor(screenFile);
-      final classes = LibraryReader(library).classes;
-
-      for (final classElement in classes) {
-        // Find classes that are likely screens (end with 'Screen' and extend StatelessWidget/StatefulWidget)
-        if (classElement.name.endsWith('Screen') &&
-            _isWidgetClass(classElement)) {
-          // Check if there's a matching arguments class
-          final String screenName = classElement.name;
-          String? argsClass;
-
-          // Look for matching arguments class
-          for (final argFile in argFiles) {
-            final argLibrary = await buildStep.resolver.libraryFor(argFile);
-            final argClasses = LibraryReader(argLibrary).classes;
-
-            // Fix: Use a null-safe approach to find matching arg class
-            ClassElement? matchingArg;
-            for (final argElement in argClasses) {
-              if (argElement.name == '${screenName}Args') {
-                matchingArg = argElement;
-                break;
-              }
-            }
-
-            if (matchingArg != null) {
-              argsClass = matchingArg.name;
-              break;
-            }
-          }
-
-          screenToArgs[screenName] = argsClass;
-        }
-      }
-    }
-
-    // Generate route file
-    final outputContent = RouteGenerator.generateRoutes(screenToArgs);
-
-    // Write output file
-    await buildStep.writeAsString(
-        AssetId(buildStep.inputId.package, 'lib/routes.g.dart'), outputContent);
+class RouteBuilder {
+  static dynamic onGenerateRoute(dynamic settings) {
+    // This is a placeholder - in the build_runner generated code, this will connect
+    // to actual routing implementation
+    throw UnimplementedError(
+        'RouteBuilder.onGenerateRoute is not implemented - run build_runner to generate implementation');
   }
 
-  /// Check if a class is a Widget class
-  bool _isWidgetClass(ClassElement element) {
-    ClassElement currentElement = element;
+  static void push(dynamic context, ScreenConfig screenConfig, dynamic args) {
+    // This is a placeholder - in the build_runner generated code, this will connect
+    // to actual Navigator.push with the right screen and arguments
+    throw UnimplementedError(
+        'RouteBuilder.push is not implemented - run build_runner to generate implementation');
+  }
 
-    while (currentElement.supertype != null) {
-      final superElement = currentElement.supertype!.element;
-      if (superElement.name == 'StatelessWidget' ||
-          superElement.name == 'StatefulWidget') {
-        return true;
-      }
+  static void pushReplacement(
+      dynamic context, ScreenConfig screenConfig, dynamic args) {
+    // This is a placeholder - in the build_runner generated code, this will connect
+    // to actual Navigator.pushReplacement with the right screen and arguments
+    throw UnimplementedError(
+        'RouteBuilder.pushReplacement is not implemented - run build_runner to generate implementation');
+  }
 
-      if (superElement is! ClassElement) break;
-      currentElement = superElement;
-    }
+  static void pushAndRemoveUntil(
+      dynamic context, ScreenConfig screenConfig, dynamic args) {
+    // This is a placeholder - in the build_runner generated code, this will connect
+    // to actual Navigator.pushAndRemoveUntil with the right screen and arguments
+    throw UnimplementedError(
+        'RouteBuilder.pushAndRemoveUntil is not implemented - run build_runner to generate implementation');
+  }
 
-    return false;
+  static void pop<T>(dynamic context, [T? result]) {
+    // This is a placeholder - in the build_runner generated code, this will connect
+    // to actual Navigator.pop with the right context and result
+    throw UnimplementedError(
+        'RouteBuilder.pop is not implemented - run build_runner to generate implementation');
   }
 }

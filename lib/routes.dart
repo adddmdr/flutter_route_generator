@@ -1,36 +1,43 @@
-import 'package:flutter/material.dart';
-import 'src/models/route_config.dart';
-import 'src/models/screen_config.dart';
+import 'package:flutter_route_generator/flutter_route_generator.dart';
 
-/// Configure the route generator with screens
-class RouteManager {
-  static RouteConfig? _config;
+class Routes {
+  static RouteConfig routeConfig = RouteConfig([]);
 
-  /// Configure the route generator with the given screens
-  static void configure(List<ScreenConfig> screens) {
-    _config = RouteConfig(screens: screens);
+  static Future<void> initialize(List<ScreenConfig> screenConfigs) async {
+    routeConfig = RouteConfig(screenConfigs);
   }
 
-  /// Get the route configuration
-  static RouteConfig get config {
-    if (_config == null) {
-      throw StateError(
-          'RouteManager not configured. Call RouteManager.configure() first.');
+  static T? getArgs<T>(dynamic arguments) {
+    if (arguments != null && arguments is T) {
+      return arguments as T;
     }
-    return _config!;
+    return null;
+  }
+
+  static Never navigatorError() {
+    throw Exception('Navigator extension called with no navigator available');
   }
 }
 
-/// Get generated route based on settings
-Route<dynamic>? getRoute(RouteSettings settings) {
-  // This will be overridden by the generated code
-  throw UnimplementedError(
-      'Route generation not implemented. Run build_runner first.');
-}
+// Extension methods for navigation
+extension NavigationExtension on dynamic {
+  push(Type screenType, {dynamic args}) {
+    if (this == null) Routes.navigatorError();
+    Routes.routeConfig.push(this, screenType, args: args);
+  }
 
-/// Route wrapper for arguments
-class RouteArguments<T> {
-  final T arguments;
+  pushReplacement(Type screenType, {dynamic args}) {
+    if (this == null) Routes.navigatorError();
+    Routes.routeConfig.pushReplacement(this, screenType, args: args);
+  }
 
-  const RouteArguments(this.arguments);
+  pushAndRemoveUntil(Type screenType, {dynamic args}) {
+    if (this == null) Routes.navigatorError();
+    Routes.routeConfig.pushAndRemoveUntil(this, screenType, args: args);
+  }
+
+  pop<T>([T? result]) {
+    if (this == null) Routes.navigatorError();
+    Routes.routeConfig.pop(this, result);
+  }
 }
