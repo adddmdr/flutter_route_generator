@@ -128,6 +128,8 @@ class RouteGeneratorBuilder implements Builder {
 
       // Add imports - only the essential ones
       generatedCode.writeln("import 'package:flutter/material.dart';");
+      generatedCode
+          .writeln("import 'package:flutter_route_generator/routes.dart';");
 
       // Extract and add all imports from the original file to ensure screens are available
       final imports = <String>{};
@@ -269,13 +271,21 @@ Route<dynamic>? $functionName(RouteSettings settings) {
 
     buffer.writeln('''
     default:
-      return null; // Let the parent handle unknown routes
+      // Return null to let the parent handler or fallback route handle it
+      return null;
   }
 }
 
-// Alias to standard name
-Route<dynamic>? appRouteGenerator(RouteSettings settings) {
-  return $functionName(settings);
+// Main route generator function that includes fallback handling
+Route<dynamic> appRouteGenerator(RouteSettings settings) {
+  // Try the specific route generator first
+  final route = $functionName(settings);
+  if (route != null) {
+    return route;
+  }
+  
+  // If no route found, use the fallback route
+  return Routes.createFallbackRoute(settings);
 }''');
 
     return buffer.toString();
