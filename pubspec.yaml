@@ -24,7 +24,7 @@ dev_dependencies:
 builders:
   route_generator:
     import: "package:flutter_route_generator/builder.dart"
-    builder_factories: ["routeGeneratorFactory"]  # Changed to match function name used by build system
-    build_extensions: {".dart": [".routes.dart"]}
+    builder_factories: ["routeGenerator"]
+    build_extensions: {"$lib$": ["routes_registry.g.dart"], ".dart": [".routes.dart"]}
     auto_apply: dependents
     build_to: source
