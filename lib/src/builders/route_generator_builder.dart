@@ -4,17 +4,25 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:flutter_route_generator/route_config_annotation.dart';
 import 'package:source_gen/source_gen.dart';
+import 'package:glob/glob.dart';
 
-/// A builder that generates standalone route code for classes annotated with @routeConfig
+/// A builder that auto-discovers and generates route code for classes annotated with @routeConfig
 class RouteGeneratorBuilder implements Builder {
   @override
   Map<String, List<String>> get buildExtensions => {
-        '.dart': ['.routes.dart']
+        r'$lib$': ['routes_registry.g.dart'],
+        '.dart': ['.routes.dart'],
       };
 
   @override
   FutureOr<void> build(BuildStep buildStep) async {
-    // Get the input and output assets
+    // Check if this is the special root build input
+    if (buildStep.inputId.path == r'$lib$') {
+      await _buildRegistry(buildStep);
+      return;
+    }
+
+    // Regular file processing for individual route configs
     final inputId = buildStep.inputId;
     final outputId = inputId.changeExtension('.routes.dart');
 
@@ -25,6 +33,74 @@ class RouteGeneratorBuilder implements Builder {
       return; // Skip if annotation is not found
     }
 
+    // Proceed with normal route generation for this file
+    await _generateRoutes(buildStep, inputId, outputId);
+  }
+
+  /// Builds a central registry of all route configurations
+  Future<void> _buildRegistry(BuildStep buildStep) async {
+    // Find all Dart files in the project
+    final dartFiles = Glob('**/*.dart');
+
+    // Store all the route config classes we find
+    final routeConfigClasses = <String>[];
+
+    // Check each file for route configs
+    await for (final input in buildStep.findAssets(dartFiles)) {
+      // Skip generated files
+      if (input.path.endsWith('.g.dart') ||
+          input.path.endsWith('.routes.dart')) {
+        continue;
+      }
+
+      try {
+        final library = await buildStep.resolver.libraryFor(input);
+        final libraryReader = LibraryReader(library);
+
+        // Find classes with the RouteConfig annotation
+        final annotatedElements = libraryReader.annotatedWith(
+          TypeChecker.fromRuntime(RouteConfig),
+        );
+
+        for (final element in annotatedElements) {
+          if (element.element is ClassElement) {
+            final className = (element.element as ClassElement).name;
+            final libraryUri = library.source.uri.toString();
+
+            // Add this route config class to our list
+            routeConfigClasses.add('$className from $libraryUri');
+          }
+        }
+      } catch (e) {
+        // Skip files that can't be parsed
+        continue;
+      }
+    }
+
+    // Create a registry file listing all route configs
+    final registry = StringBuffer();
+    registry
+        .writeln('// GENERATED CODE - AUTO-DISCOVERED ROUTE CONFIGURATIONS');
+    registry.writeln(
+        '// **************************************************************************');
+    registry
+        .writeln('// Found ${routeConfigClasses.length} @routeConfig classes:');
+
+    for (final configClass in routeConfigClasses) {
+      registry.writeln('// - $configClass');
+    }
+
+    registry.writeln(
+        '// **************************************************************************');
+
+    // Write the registry file
+    final outputId =
+        AssetId(buildStep.inputId.package, 'lib/routes_registry.g.dart');
+    await buildStep.writeAsString(outputId, registry.toString());
+  }
+
+  Future<void> _generateRoutes(
+      BuildStep buildStep, AssetId inputId, AssetId outputId) async {
     try {
       // Parse the library
       final library = await buildStep.resolver.libraryFor(inputId);
@@ -126,16 +202,16 @@ class RouteGeneratorBuilder implements Builder {
           ));
         }
 
-        // Generate completely standalone route code
+        // Generate route code
         if (screens.isNotEmpty) {
-          generatedCode.writeln(_generateRouteOnlyCode(screens));
+          generatedCode.writeln(_generateRouteOnlyCode(screens, element.name));
         }
       }
 
       // Write the generated code to the output file
       await buildStep.writeAsString(outputId, generatedCode.toString());
     } catch (e) {
-      print('Error generating routes: $e');
+      print('Error generating routes for ${inputId.path}: $e');
     }
   }
 
@@ -150,12 +226,15 @@ class RouteGeneratorBuilder implements Builder {
     }
   }
 
-  String _generateRouteOnlyCode(List<_ScreenConfig> screens) {
+  String _generateRouteOnlyCode(List<_ScreenConfig> screens, String className) {
     final buffer = StringBuffer();
 
+    // Create unique function name based on class name to avoid conflicts
+    final functionName = 'generate${className}Routes';
+
     buffer.writeln('''
-// Route generator function
-Route<dynamic>? appRouteGenerator(RouteSettings settings) {
+// Route generator function for $className
+Route<dynamic>? $functionName(RouteSettings settings) {
   final routeName = settings.name;
   final arguments = settings.arguments;
 
@@ -190,17 +269,13 @@ Route<dynamic>? appRouteGenerator(RouteSettings settings) {
 
     buffer.writeln('''
     default:
-      // Fallback route - you can customize this to show a not found page
-      return MaterialPageRoute(
-        settings: settings,
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: const Text('Page Not Found')),
-          body: Center(
-            child: Text('The page "\${settings.name}" could not be found.'),
-          ),
-        ),
-      );
+      return null; // Let the parent handle unknown routes
   }
+}
+
+// Alias to standard name
+Route<dynamic>? appRouteGenerator(RouteSettings settings) {
+  return $functionName(settings);
 }''');
 
     return buffer.toString();
