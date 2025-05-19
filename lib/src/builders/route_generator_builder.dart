@@ -6,7 +6,7 @@ import 'package:flutter_route_generator/route_config_annotation.dart';
 import 'package:source_gen/source_gen.dart';
 import 'package:glob/glob.dart';
 
-/// A builder that auto-discovers and generates route code for classes annotated with @routeConfig
+/// A builder that generates route code for classes annotated with @routeConfig
 class RouteGeneratorBuilder implements Builder {
   @override
   Map<String, List<String>> get buildExtensions => {
@@ -191,6 +191,20 @@ class RouteGeneratorBuilder implements Builder {
           final requiresArgs =
               item.getField('requiresArgs')?.toBoolValue() ?? false;
 
+          // If there's an args type, find the parameter name in the screen class constructor
+          String? argsParamName = null;
+          if (argsType != null) {
+            try {
+              argsParamName =
+                  _findConstructorParamForType(screenType, argsType);
+            } catch (e) {
+              print(
+                  'Warning: Could not detect parameter name for $argsTypeName in $screenTypeName: $e');
+              // If we can't find a parameter, fall back to "args"
+              argsParamName = 'args';
+            }
+          }
+
           // Format the route name with proper casing: HomeScreen -> /homeScreen
           final routeName = pathValue ??
               '/${screenTypeName.substring(0, 1).toLowerCase()}${screenTypeName.substring(1)}';
@@ -201,6 +215,7 @@ class RouteGeneratorBuilder implements Builder {
             routeName: routeName,
             isInitial: isInitial,
             requiresArgs: requiresArgs,
+            argsParamName: argsParamName,
           ));
         }
 
@@ -215,6 +230,46 @@ class RouteGeneratorBuilder implements Builder {
     } catch (e) {
       print('Error generating routes for ${inputId.path}: $e');
     }
+  }
+
+  /// Find the parameter name in the class constructor that has the specified type
+  String? _findConstructorParamForType(DartType classType, DartType argsType) {
+    if (classType is! InterfaceType) return null;
+
+    final classElement = classType.element;
+    if (classElement is! ClassElement) return null;
+
+    // Find a constructor - try default constructor first, then any others
+    ConstructorElement? constructor;
+
+    // Look for the unnamed constructor
+    for (final ctor in classElement.constructors) {
+      if (ctor.name.isEmpty) {
+        constructor = ctor;
+        break;
+      }
+    }
+
+    // If we didn't find an unnamed constructor, use the first one available
+    if (constructor == null && classElement.constructors.isNotEmpty) {
+      constructor = classElement.constructors.first;
+    }
+
+    // If we still don't have a constructor, return null
+    if (constructor == null) return null;
+
+    // Look for a parameter with the matching type
+    for (final param in constructor.parameters) {
+      final paramType = param.type.getDisplayString(withNullability: false);
+      final argsTypeStr = argsType.getDisplayString(withNullability: false);
+
+      if (paramType == argsTypeStr) {
+        return param.name;
+      }
+    }
+
+    // If we can't find a matching parameter, return null
+    return null;
   }
 
   String _getTypeName(DartType type) {
@@ -246,6 +301,8 @@ Route<dynamic>? $functionName(RouteSettings settings) {
       buffer.writeln("    case '${screen.routeName}':");
 
       if (screen.argsTypeName != null) {
+        final paramName = screen.argsParamName ?? 'args';
+
         if (screen.requiresArgs) {
           // For screens that require arguments, add a null check with an error
           buffer.writeln('''
@@ -253,13 +310,13 @@ Route<dynamic>? $functionName(RouteSettings settings) {
         throw ArgumentError('${screen.typeName} requires ${screen.argsTypeName} but no arguments were provided');
       }
       return MaterialPageRoute(
-        builder: (context) => ${screen.typeName}(args: arguments as ${screen.argsTypeName}), 
+        builder: (context) => ${screen.typeName}($paramName: arguments as ${screen.argsTypeName}), 
         settings: settings
       );''');
         } else {
           // For screens with optional arguments
           buffer.writeln(
-            "      return MaterialPageRoute(builder: (context) => ${screen.typeName}(args: arguments as ${screen.argsTypeName}?), settings: settings);",
+            "      return MaterialPageRoute(builder: (context) => ${screen.typeName}($paramName: arguments as ${screen.argsTypeName}?), settings: settings);",
           );
         }
       } else {
@@ -298,6 +355,7 @@ class _ScreenConfig {
   final String routeName;
   final bool isInitial;
   final bool requiresArgs;
+  final String? argsParamName; // Added parameter name field
 
   _ScreenConfig({
     required this.typeName,
@@ -305,5 +363,6 @@ class _ScreenConfig {
     this.argsTypeName,
     this.isInitial = false,
     this.requiresArgs = false,
+    this.argsParamName,
   });
 }
