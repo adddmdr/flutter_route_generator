@@ -4,24 +4,16 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:flutter_route_generator/route_config_annotation.dart';
 import 'package:source_gen/source_gen.dart';
-import 'package:glob/glob.dart';
 
 /// A builder that generates route code for classes annotated with @routeConfig
 class RouteGeneratorBuilder implements Builder {
   @override
   Map<String, List<String>> get buildExtensions => {
-        r'$lib$': ['routes_registry.g.dart'],
         '.dart': ['.routes.dart'],
       };
 
   @override
   FutureOr<void> build(BuildStep buildStep) async {
-    // Check if this is the special root build input
-    if (buildStep.inputId.path == r'$lib$') {
-      await _buildRegistry(buildStep);
-      return;
-    }
-
     // Regular file processing for individual route configs
     final inputId = buildStep.inputId;
     final outputId = inputId.changeExtension('.routes.dart');
@@ -35,68 +27,6 @@ class RouteGeneratorBuilder implements Builder {
 
     // Proceed with normal route generation for this file
     await _generateRoutes(buildStep, inputId, outputId);
-  }
-
-  /// Builds a central registry of all route configurations
-  Future<void> _buildRegistry(BuildStep buildStep) async {
-    // Find all Dart files in the project
-    final dartFiles = Glob('**/*.dart');
-
-    // Store all the route config classes we find
-    final routeConfigClasses = <String>[];
-
-    // Check each file for route configs
-    await for (final input in buildStep.findAssets(dartFiles)) {
-      // Skip generated files
-      if (input.path.endsWith('.g.dart') ||
-          input.path.endsWith('.routes.dart')) {
-        continue;
-      }
-
-      try {
-        final library = await buildStep.resolver.libraryFor(input);
-        final libraryReader = LibraryReader(library);
-
-        // Find classes with the RouteConfig annotation
-        final annotatedElements = libraryReader.annotatedWith(
-          TypeChecker.fromRuntime(RouteConfig),
-        );
-
-        for (final element in annotatedElements) {
-          if (element.element is ClassElement) {
-            final className = (element.element as ClassElement).name;
-            final libraryUri = library.source.uri.toString();
-
-            // Add this route config class to our list
-            routeConfigClasses.add('$className from $libraryUri');
-          }
-        }
-      } catch (e) {
-        // Skip files that can't be parsed
-        continue;
-      }
-    }
-
-    // Create a registry file listing all route configs
-    final registry = StringBuffer();
-    registry
-        .writeln('// GENERATED CODE - AUTO-DISCOVERED ROUTE CONFIGURATIONS');
-    registry.writeln(
-        '// **************************************************************************');
-    registry
-        .writeln('// Found ${routeConfigClasses.length} @routeConfig classes:');
-
-    for (final configClass in routeConfigClasses) {
-      registry.writeln('// - $configClass');
-    }
-
-    registry.writeln(
-        '// **************************************************************************');
-
-    // Write the registry file
-    final outputId =
-        AssetId(buildStep.inputId.package, 'lib/routes_registry.g.dart');
-    await buildStep.writeAsString(outputId, registry.toString());
   }
 
   Future<void> _generateRoutes(
