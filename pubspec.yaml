@@ -20,11 +20,36 @@ dev_dependencies:
   build_test: ^2.1.7
   test: ^1.24.1
 
-# This section is crucial for the build_runner to find and use your builder
+# Builder configuration with default settings to avoid requiring app-level build.yaml
 builders:
   route_generator:
     import: "package:flutter_route_generator/builder.dart"
-    builder_factories: ["routeGenerator"]
-    build_extensions: {"$lib$": ["routes_registry.g.dart"], ".dart": [".routes.dart"]}
+    builder_factories: ["routeGeneratorFactory"]
+    build_extensions: {".dart": [".routes.dart"]}
     auto_apply: dependents
     build_to: source
+    defaults:
+      generate_for:
+        include:
+          - lib/**.dart
+          - web/**.dart
+      options:
+        auto_discovery: true
+    applies_builders: ["source_gen:combining_builder"]
+    
+    # Configuration to keep the builder from conflicting with source_gen
+    required_inputs: [".dart"]
+    runs_before: ["source_gen:combining_builder"]
+
+  route_registry_generator:
+    import: "package:flutter_route_generator/builder.dart"
+    builder_factories: ["registryGeneratorFactory"]
+    build_extensions: {"lib/$lib$": ["lib/routes_registry.g.dart"]}
+    auto_apply: dependents
+    build_to: source
+    defaults:
+      generate_for:
+        include:
+          - lib/
+      options:
+        auto_discovery: true
