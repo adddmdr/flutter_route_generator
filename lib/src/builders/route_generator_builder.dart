@@ -193,13 +193,26 @@ class RouteGeneratorBuilder implements Builder {
 
           // If there's an args type, find the parameter name in the screen class constructor
           String? argsParamName = null;
+          bool isArgRequired = false;
+
           if (argsType != null) {
             try {
-              argsParamName =
+              // Get the parameter info from the constructor
+              final paramInfo =
                   _findConstructorParamForType(screenType, argsType);
+              argsParamName = paramInfo.name;
+              isArgRequired = paramInfo.isRequired;
+
+              // Alert if the parameter is required but requiresArgs is not set
+              if (isArgRequired && !requiresArgs) {
+                log.warning(
+                    'ROUTE CONFIG WARNING: ${screenTypeName} has a required parameter for ${argsTypeName} '
+                    'but requiresArgs is not set to true in the ScreenConfig. '
+                    'This may cause runtime errors if arguments are not provided.');
+              }
             } catch (e) {
               print(
-                  'Warning: Could not detect parameter name for $argsTypeName in $screenTypeName: $e');
+                  'Warning: Could not detect parameter info for $argsTypeName in $screenTypeName: $e');
               // If we can't find a parameter, fall back to "args"
               argsParamName = 'args';
             }
@@ -232,12 +245,15 @@ class RouteGeneratorBuilder implements Builder {
     }
   }
 
-  /// Find the parameter name in the class constructor that has the specified type
-  String? _findConstructorParamForType(DartType classType, DartType argsType) {
-    if (classType is! InterfaceType) return null;
+  /// Find the parameter name and required status in the class constructor
+  _ConstructorParamInfo _findConstructorParamForType(
+      DartType classType, DartType argsType) {
+    if (classType is! InterfaceType)
+      return _ConstructorParamInfo(name: 'args', isRequired: false);
 
     final classElement = classType.element;
-    if (classElement is! ClassElement) return null;
+    if (classElement is! ClassElement)
+      return _ConstructorParamInfo(name: 'args', isRequired: false);
 
     // Find a constructor - try default constructor first, then any others
     ConstructorElement? constructor;
@@ -255,8 +271,9 @@ class RouteGeneratorBuilder implements Builder {
       constructor = classElement.constructors.first;
     }
 
-    // If we still don't have a constructor, return null
-    if (constructor == null) return null;
+    // If we still don't have a constructor, return default
+    if (constructor == null)
+      return _ConstructorParamInfo(name: 'args', isRequired: false);
 
     // Look for a parameter with the matching type
     for (final param in constructor.parameters) {
@@ -264,12 +281,15 @@ class RouteGeneratorBuilder implements Builder {
       final argsTypeStr = argsType.getDisplayString(withNullability: false);
 
       if (paramType == argsTypeStr) {
-        return param.name;
+        return _ConstructorParamInfo(
+          name: param.name,
+          isRequired: param.isRequired,
+        );
       }
     }
 
-    // If we can't find a matching parameter, return null
-    return null;
+    // If we can't find a matching parameter, return default
+    return _ConstructorParamInfo(name: 'args', isRequired: false);
   }
 
   String _getTypeName(DartType type) {
@@ -347,6 +367,17 @@ Route<dynamic> appRouteGenerator(RouteSettings settings) {
 
     return buffer.toString();
   }
+}
+
+/// Holds information about a constructor parameter
+class _ConstructorParamInfo {
+  final String name;
+  final bool isRequired;
+
+  _ConstructorParamInfo({
+    required this.name,
+    required this.isRequired,
+  });
 }
 
 class _ScreenConfig {
