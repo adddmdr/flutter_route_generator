@@ -1,15 +1,16 @@
 # Flutter Route Generator
 
-A simple and flexible route generation package for Flutter applications that eliminates boilerplate code when handling navigation.
+A smart, flexible route generation package for Flutter applications that eliminates boilerplate code and makes navigation type-safe and clean.
 
 ## Features
 
 - ✅ Automatic route generation from configuration
 - ✅ Type-safe navigation with compile-time checking
-- ✅ Support for arguments passing with type safety
-- ✅ Extension methods for cleaner navigation code
+- ✅ Intelligent parameter name detection - use any naming convention
+- ✅ Required parameter detection and warnings
 - ✅ Auto-discovery of route configurations anywhere in your project
 - ✅ Customizable fallback route for unmatched routes
+- ✅ Extension methods for cleaner navigation code
 - ✅ No manual configuration required
 
 ## Installation
@@ -47,9 +48,6 @@ targets:
         generate_for:
           include:
             - lib/**.dart
-            - example/**.dart
-            # Add any other directories you want to scan
-            # - modules/**.dart
 ```
 
 ### 2. Define Your Routes
@@ -59,39 +57,76 @@ Create a routes configuration class using the `@routeConfig` annotation anywhere
 ```dart
 import 'package:flutter_route_generator/route_config_annotation.dart';
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
-import 'screens/detail_screen.dart';
-import 'models/home_screen_args.dart';
-import 'models/detail_screen_args.dart';
+import 'screens/home.dart';
+import 'screens/product_details.dart';
+import 'models/product_args.dart';
 
 @routeConfig
 class AppRoutes {
   static const List<ScreenConfig> screenConfigs = [
     ScreenConfig(
-      screenType: HomeScreen,
-      argsType: HomeScreenArgs,
+      screenType: Home,
       isInitial: true,
     ),
     ScreenConfig(
-      screenType: DetailScreen,
-      argsType: DetailScreenArgs,
+      screenType: ProductDetails,
+      argsType: ProductArgs,
       requiresArgs: true,
     ),
     ScreenConfig(
-      screenType: ProfileScreen,
+      screenType: UserProfile,
+      // Custom path instead of using the class name
+      path: '/user/profile',
     )
   ];
 }
 ```
 
-You can define route configurations in any location - for example, you might have:
-- `lib/routes/app_routes.dart` for main app routes
-- `lib/features/auth/auth_routes.dart` for authentication routes
-- `lib/dashboard/dashboard_routes.dart` for dashboard module routes
+### 3. Create Your Screen Widgets
 
-### 3. Generate Routes
+Create your screen widgets using any naming convention for arguments parameters:
 
-Run the build_runner to generate the route code for all annotated route classes:
+```dart
+// Screen with a required argument parameter named 'product'
+class ProductDetails extends StatelessWidget {
+  final ProductArgs product;
+  
+  const ProductDetails({Key? key, required this.product}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    // Your UI code
+  }
+}
+
+// Screen with a required argument parameter named 'arguments'
+class Auth extends StatelessWidget {
+  final AuthScreenArguments arguments;
+  
+  const Auth({Key? key, required this.arguments}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    // Your UI code
+  }
+}
+
+// Screen with a parameter named 'args'
+class DetailScreen extends StatelessWidget {
+  final DetailScreenArgs args;
+  
+  const DetailScreen({Key? key, required this.args}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    // Your UI code
+  }
+}
+```
+
+### 4. Generate Routes
+
+Run the build_runner to generate the route code:
 
 ```bash
 flutter pub run build_runner build
@@ -100,9 +135,10 @@ flutter pub run build_runner build
 This will:
 1. Find all classes with the `@routeConfig` annotation
 2. Generate a corresponding `.routes.dart` file next to each annotated class
-3. Create a central registry file at `lib/routes_registry.g.dart` listing all discovered route configurations
+3. Create a central registry file at `lib/routes_registry.g.dart`
+4. Check for any mismatches between your route configurations and widget parameters
 
-### 4. Initialize Your App
+### 5. Initialize Your App
 
 Set up your Flutter app to use the generated route system:
 
@@ -111,20 +147,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_route_generator/routes.dart';
 import 'routes/app_routes.dart';
 import 'routes/app_routes.routes.dart';
-import 'features/auth/auth_routes.routes.dart';
-import 'dashboard/dashboard_routes.routes.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize routes with all your screen configurations
-  // Optionally provide a fallback route configuration
+  // Initialize routes with your screen configurations with optional fallbackRoute
   await Routes.initialize(
-    [
-      ...AppRoutes.screenConfigs,
-      ...AuthRoutes.screenConfigs,
-      ...DashboardRoutes.screenConfigs,
-    ],
+    AppRoutes.screenConfigs,
     fallbackRouteConfig: FallbackRouteConfig(
       builder: (context, routeName) => Scaffold(
         appBar: AppBar(title: const Text('Not Found')),
@@ -132,10 +161,6 @@ void main() async {
           child: Text('The route "$routeName" was not found.'),
         ),
       ),
-      // Optional custom transition animation
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        return FadeTransition(opacity: animation, child: child);
-      },
     ),
   );
   
@@ -159,84 +184,64 @@ class MyApp extends StatelessWidget {
 }
 ```
 
-## Usage
+## Navigation
 
-### Screen Creation
-
-Create your screen widgets with the appropriate constructor for arguments:
+Use the extension methods to navigate between screens:
 
 ```dart
-// Without arguments
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
-      body: Center(
-        child: Text('Profile screen'),
-      ),
-    );
-  }
-}
-
-// With arguments
-class DetailScreen extends StatelessWidget {
-  final DetailScreenArgs args;
-  
-  const DetailScreen({Key? key, required this.args}) : super(key: key);
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(args.title)),
-      body: Center(
-        child: Text('ID: ${args.id}'),
-      ),
-    );
-  }
-}
-
-// Arguments class
-class DetailScreenArgs {
-  final String title;
-  final int id;
-  
-  const DetailScreenArgs({required this.title, required this.id});
-}
-```
-
-### Navigation
-
-Use the extension methods from the Routes class to navigate:
-
-```dart
-// Import the routes package
-import 'package:flutter_route_generator/routes.dart';
-
-// Inside your widget:
 // Navigate to a screen without arguments
-context.push(ProfileScreen);
+context.push(Home);
 
 // Navigate to a screen with arguments
 context.push(
-  DetailScreen, 
-  args: DetailScreenArgs(title: 'Item Details', id: 123)
+  ProductDetails, 
+  args: ProductArgs(id: 123, name: 'Smartphone')
 );
 
 // Replace current screen
 context.pushReplacement(
   DetailScreen, 
-  args: DetailScreenArgs(title: 'New Details', id: 456)
+  args: DetailScreenArgs(title: 'New Details', content: 'Some content')
 );
 
 // Clear stack and navigate
-context.pushAndRemoveUntil(HomeScreen);
+context.pushAndRemoveUntil(Home);
 
 // Go back
 context.pop();
 ```
+
+## Smart Features
+
+### 1. Automatic Parameter Name Detection
+
+The package automatically detects the parameter name in your widget constructor that matches the arguments type:
+
+```dart
+// The package will detect 'product' as the parameter name
+class ProductDetails extends StatelessWidget {
+  final ProductArgs product;
+  
+  const ProductDetails({Key? key, required this.product}) : super(key: key);
+  // ...
+}
+```
+
+### 2. Required Parameter Warning
+
+During build time, the package will warn you if you forgot to set `requiresArgs: true` for a screen with a required parameter:
+
+```
+ROUTE CONFIG WARNING: ProductDetails has a required parameter for ProductArgs but requiresArgs is not set to true in the ScreenConfig. This may cause runtime errors if arguments are not provided.
+```
+
+### 3. Auto-Discovery
+
+Define route configurations anywhere in your project - the package will find and process them automatically.
+
+### 4. Fallback Route
+
+Customize how your app handles unknown routes with the fallback route configuration.
 
 ## Configuration Options
 
@@ -246,49 +251,57 @@ The `ScreenConfig` class supports the following options:
 
 - `screenType`: The type of the screen widget (required)
 - `argsType`: The type of the arguments class (optional)
-- `path`: Custom route path (optional, defaults to lowercased screen name)
+- `path`: Custom route path (optional, defaults to lowercased class name)
 - `isInitial`: Whether this is the initial screen (optional, defaults to false)
 - `requiresArgs`: Whether arguments are required (optional, defaults to false)
 
 ### FallbackRouteConfig Options
 
-The `FallbackRouteConfig` class allows you to customize the fallback route:
-
 - `builder`: Function that builds the screen widget (required)
 - `transitionsBuilder`: Custom transition animation (optional)
 - `maintainState`: Whether to maintain state when navigating away (optional, defaults to true)
 
-## Auto-Discovery Details
+## Best Practices
 
-The built-in auto-discovery feature:
+1. **Set `requiresArgs: true` for screens with required arguments**:
+   ```dart
+   ScreenConfig(
+     screenType: ProductDetails,
+     argsType: ProductArgs,
+     requiresArgs: true,  // Important for runtime safety
+   )
+   ```
 
-1. **Finds all @routeConfig classes** in your project
-2. **Generates route implementations** for each configuration
-3. **Creates a registry** of all discovered configurations
+2. **Use consistent naming for argument classes**:
+   While any naming convention is supported, using consistent names like `HomeArgs` or `ProfileArguments` makes your code more maintainable.
 
-Benefits:
-- Define routes close to the features they belong to
-- No need to manually register routes or update build.yaml when adding new routes
-- Supports modular architecture with routes in feature folders
+3. **Organize routes by feature**:
+   Take advantage of auto-discovery to define routes close to their related features.
 
 ## How It Works
 
-The package scans your entire project for classes annotated with `@routeConfig`, then generates the necessary route implementation files. Each route generator includes fallback handling, and the navigation system uses the Routes class and context extensions to provide a clean, type-safe API for navigation.
+Under the hood, the package:
 
-## Architecture
+1. Scans your project for `@routeConfig` annotations
+2. Analyzes your widget constructors to find parameter names matching argument types
+3. Generates type-safe route code
+4. Checks for configuration/implementation mismatches
+5. Creates a central route registry
 
-The package consists of:
+## Troubleshooting
 
-1. **route_config_annotation.dart** - Contains the annotation and configuration classes
-2. **routes.dart** - The central navigation system with extension methods
-3. **Generated .routes.dart files** - Contains route generator functions for each configuration
-4. **routes_registry.g.dart** - A central registry of all route configurations
+### Error: Parameter Not Found
 
-## Limitations
+If you see a warning about a parameter not being found, ensure:
+- Your widget has a constructor parameter with the correct type
+- The argument type is imported properly
+- Your code compiles successfully
 
-- The package requires that screens with arguments have an `args` parameter in their constructor
-- All screens must be statically defined in the route configuration
-- Route names must be unique across all route configurations
+### Performance Issues
+
+If the build process is slow:
+- Use more specific include paths in your `build.yaml`
+- Consider splitting large route configurations into smaller ones
 
 ## License
 
