@@ -11,6 +11,7 @@ A smart, flexible route generation package for Flutter applications that makes n
 - ✅ **Auto-Discovery**: Finds route configurations anywhere in your project
 - ✅ **Customizable Fallback Routes**: Handle unknown routes gracefully
 - ✅ **Modular Architecture Support**: Define routes close to related features
+- ✅ **Nested Navigation**: Support for subroutes and nested navigators
 
 ## Installation
 
@@ -23,8 +24,6 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.3.0
 ```
-
-That's it! No additional configuration needed.
 
 ## Quick Start
 
@@ -173,34 +172,110 @@ context.pushAndRemoveUntil(HomeScreen);
 context.pop();
 ```
 
-## Smart Features
+## Advanced Features
 
-### Automatic Parameter Detection
+### Nested Navigation with Subroutes
 
-The package automatically detects the parameter name in your widget constructor that matches the arguments type:
+Define subroutes for screens that need their own internal navigation:
 
 ```dart
-// The package detects 'details' as the parameter name
-class DetailScreen extends StatelessWidget {
-  final DetailArgs details;
-  
-  const DetailScreen({Key? key, required this.details}) : super(key: key);
-  // ...
+@routeConfig
+class AppRoutes {
+  static const List<ScreenConfig> screenConfigs = [
+    ScreenConfig(
+      screenType: HomeScreen,
+      isInitial: true,
+    ),
+    ScreenConfig(
+      screenType: ProductScreen,
+      argsType: ProductArgs,
+      requiresArgs: true,
+      subroutes: [
+        ScreenConfig(screenType: ProductDetailsScreen),
+        ScreenConfig(screenType: ProductReviewsScreen),
+      ],
+    ),
+  ];
 }
 ```
 
-### Required Parameter Warning
+Create a screen that handles subroutes:
 
-During build time, the package warns you if you forgot to set `requiresArgs: true` for a screen with a required parameter:
+```dart
+class ProductScreen extends StatelessWidget {
+  final ProductArgs product;
+  final String? initialSubRoute;
+  
+  const ProductScreen({
+    Key? key, 
+    required this.product,
+    this.initialSubRoute,
+  }) : super(key: key);
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(product.name)),
+      body: initialSubRoute != null
+          ? _buildSubRoute(context, initialSubRoute!)
+          : _buildMainContent(context),
+    );
+  }
+  
+  Widget _buildSubRoute(BuildContext context, String subRoute) {
+    if (subRoute.startsWith('/details')) {
+      return ProductDetailsScreen(product: product);
+    } else if (subRoute.startsWith('/reviews')) {
+      return ProductReviewsScreen(product: product);
+    } else {
+      return Center(child: Text('Unknown subroute: $subRoute'));
+    }
+  }
+  
+  Widget _buildMainContent(BuildContext context) {
+    // Main product screen content
+  }
+}
 ```
-ROUTE CONFIG WARNING: DetailScreen has a required parameter for DetailArgs but requiresArgs 
-is not set to true in the ScreenConfig. This may cause runtime errors if arguments are not provided.
+
+Navigate to subroutes:
+
+```dart
+// Navigate to main product screen
+context.push(
+  ProductScreen, 
+  args: ProductArgs(id: 101, name: 'Smartphone')
+);
+
+// Navigate directly to a subroute
+context.pushNested(
+  ProductScreen,
+  '/details',
+  args: ProductArgs(id: 101, name: 'Smartphone')
+);
 ```
 
-## Multiple Route Configurations
+### Custom Transitions
 
-You can organize your routes by feature:
+Add custom transitions to your routes:
+
+```dart
+ScreenConfig(
+  screenType: DetailScreen,
+  argsType: DetailArgs,
+  requiresArgs: true,
+  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+    return FadeTransition(
+      opacity: animation,
+      child: child,
+    );
+  },
+),
+```
+
+### Multiple Route Configurations
+
+Organize your routes by feature:
 
 ```dart
 // In lib/features/auth/auth_routes.dart
@@ -240,9 +315,11 @@ await Routes.initialize([
 |-----------|------|-------------|
 | screenType | Type | The widget class type (required) |
 | argsType | Type? | The arguments class type (optional) |
-| path | String? | Custom route path (default: lowercase screen name) |
+| path | String? | Custom route path (default: '/' for initial screens, lowercase screen name for others) |
 | isInitial | bool | Whether this is the initial screen (default: false) |
 | requiresArgs | bool | Whether arguments are required (default: false) |
+| subroutes | List<ScreenConfig>? | Nested routes for this screen (optional) |
+| transitionsBuilder | Function? | Custom transition animation (optional) |
 
 ### FallbackRouteConfig
 
@@ -251,6 +328,32 @@ await Routes.initialize([
 | builder | Function | Builds the fallback screen (required) |
 | transitionsBuilder | Function? | Custom transition animation (optional) |
 | maintainState | bool | Maintain state when navigating away (default: true) |
+
+## How It Works
+
+### Route Generation Process
+
+1. **Annotation Processing**: The package scans your codebase for classes annotated with `@routeConfig`.
+
+2. **Parameter Detection**: For screens with arguments, it automatically detects the parameter name in your widget constructor that matches the arguments type.
+
+3. **Code Generation**: It generates type-safe route handling code for each screen configuration.
+
+4. **Route Registration**: At runtime, all routes are registered with the navigation system.
+
+### Path Generation
+
+- For screens marked as `isInitial: true`, the default path is `/` (unless overridden).
+- For other screens, the default path is the screen name with the first letter lowercase (e.g., `DetailScreen` becomes `/detailScreen`).
+- You can override any path with the `path` parameter.
+
+### Argument Handling
+
+The package automatically:
+1. Detects the parameter name in your widget constructor
+2. Generates code to pass arguments correctly
+3. Performs type checking to ensure arguments match
+4. Warns during build if a required parameter isn't marked as required in the route config
 
 ## Best Practices
 
@@ -269,6 +372,9 @@ await Routes.initialize([
 3. **Use consistent parameter naming**:
    While any naming convention works, consistency improves maintainability.
 
+4. **Handle subroutes properly**:
+   For screens with nested navigation, implement the `initialSubRoute` parameter.
+
 ## Troubleshooting
 
 ### Warning: Could not detect parameter
@@ -283,6 +389,13 @@ If you see this warning, check:
 If the build process fails:
 1. Clean your build: `flutter pub run build_runner clean`
 2. Run with verbose output: `flutter pub run build_runner build --verbose`
+
+### Route Not Found
+
+If you get a "route not found" error:
+1. Check that you've run the build_runner
+2. Verify that the route name matches the generated path
+3. Ensure you're using the correct initialRoute in MaterialApp
 
 ## License
 

@@ -61,8 +61,67 @@ class RouteGeneratorBuilder implements Builder {
       generatedCode
           .writeln("import 'package:flutter_route_generator/routes.dart';");
 
+      // Track all screen types to ensure we import them
+      final screenTypes = <DartType>{};
+      final argsTypes = <DartType>{};
+
+      // First pass: collect all screen and args types
+      for (final annotatedElement in annotatedElements) {
+        final element = annotatedElement.element;
+        if (element is! ClassElement) continue;
+
+        // Find the screenConfigs field
+        FieldElement? configField;
+        for (final field in element.fields) {
+          if (field.isStatic && field.name == 'screenConfigs') {
+            configField = field;
+            break;
+          }
+        }
+
+        if (configField == null) continue;
+
+        // Get the screenConfigs list
+        final constantValue = configField.computeConstantValue();
+        if (constantValue == null) continue;
+
+        final list = constantValue.toListValue();
+        if (list == null || list.isEmpty) continue;
+
+        // Process each screen config to collect types
+        for (final item in list) {
+          final screenType = item.getField('screenType')?.toTypeValue();
+          if (screenType == null) continue;
+
+          screenTypes.add(screenType);
+
+          final argsType = item.getField('argsType')?.toTypeValue();
+          if (argsType != null) {
+            argsTypes.add(argsType);
+          }
+        }
+      }
+
       // Extract and add all imports from the original file to ensure screens are available
       final imports = <String>{};
+
+      // Add imports for all screen types
+      for (final type in [...screenTypes, ...argsTypes]) {
+        if (type is InterfaceType) {
+          final element = type.element;
+          final source = element.source;
+          if (source != null) {
+            final uri = source.uri.toString();
+            if (!uri.startsWith('dart:') &&
+                !uri.contains('flutter_route_generator') &&
+                uri != 'package:flutter/material.dart') {
+              imports.add(uri);
+            }
+          }
+        }
+      }
+
+      // Also add any imports from the original file that might be needed
       try {
         for (final import in library.libraryImports) {
           final uri = import.importedLibrary?.source.uri.toString();
@@ -109,6 +168,7 @@ class RouteGeneratorBuilder implements Builder {
 
         // Process each screen config
         final screens = <_ScreenConfig>[];
+        // Inside the _generateRoutes method, when processing screen configs:
         for (final item in list) {
           final screenType = item.getField('screenType')?.toTypeValue();
           if (screenType == null) continue;
@@ -121,36 +181,34 @@ class RouteGeneratorBuilder implements Builder {
           final requiresArgs =
               item.getField('requiresArgs')?.toBoolValue() ?? false;
 
+          // Extract subroutes if present
+          final subroutesValue = item.getField('subroutes')?.toListValue();
+          final hasSubroutes =
+              subroutesValue != null && subroutesValue.isNotEmpty;
+
           // If there's an args type, find the parameter name in the screen class constructor
-          String? argsParamName = null;
-          bool isArgRequired = false;
+          String? argsParamName;
 
           if (argsType != null) {
-            try {
-              // Get the parameter info from the constructor
-              final paramInfo =
-                  _findConstructorParamForType(screenType, argsType);
-              argsParamName = paramInfo.name;
-              isArgRequired = paramInfo.isRequired;
+            final paramInfo =
+                _findConstructorParamForType(screenType, argsType);
+            argsParamName = paramInfo.name;
 
-              // Alert if the parameter is required but requiresArgs is not set
-              if (isArgRequired && !requiresArgs) {
-                log.warning(
-                    'ROUTE CONFIG WARNING: ${screenTypeName} has a required parameter for ${argsTypeName} '
-                    'but requiresArgs is not set to true in the ScreenConfig. '
-                    'This may cause runtime errors if arguments are not provided.');
-              }
-            } catch (e) {
+            // Check if the parameter is required but requiresArgs is false
+            // This could lead to runtime errors, so we'll print a warning
+            if (paramInfo.isRequired && !requiresArgs) {
               print(
-                  'Warning: Could not detect parameter info for $argsTypeName in $screenTypeName: $e');
-              // If we can't find a parameter, fall back to "args"
-              argsParamName = 'args';
+                  'WARNING: ${screenTypeName} has a required parameter for ${argsTypeName} '
+                  'but requiresArgs is not set to true in the ScreenConfig. '
+                  'This may cause runtime errors if arguments are not provided.');
             }
           }
 
           // Format the route name with proper casing: HomeScreen -> /homeScreen
           final routeName = pathValue ??
-              '/${screenTypeName.substring(0, 1).toLowerCase()}${screenTypeName.substring(1)}';
+              (isInitial
+                  ? '/'
+                  : '/${screenTypeName.substring(0, 1).toLowerCase()}${screenTypeName.substring(1)}');
 
           screens.add(_ScreenConfig(
             typeName: screenTypeName,
@@ -159,6 +217,7 @@ class RouteGeneratorBuilder implements Builder {
             isInitial: isInitial,
             requiresArgs: requiresArgs,
             argsParamName: argsParamName,
+            hasSubroutes: hasSubroutes,
           ));
         }
 
@@ -245,10 +304,41 @@ Route<dynamic>? $functionName(RouteSettings settings) {
   final routeName = settings.name;
   final arguments = settings.arguments;
 
-  switch (routeName) {''');
+  // Extract parent route and potential subroute
+  String parentRoute = routeName!;
+  String? subRoute;
+  
+  // Check if this is a subroute (contains more than one slash after the first)
+  final routeParts = routeName.split('/');
+  if (routeParts.length > 2) {
+    // The parent route is everything up to the second slash
+    final secondSlashIndex = routeName.indexOf('/', 1);
+    if (secondSlashIndex != -1) {
+      parentRoute = routeName.substring(0, secondSlashIndex);
+      subRoute = routeName.substring(secondSlashIndex);
+    }
+  }
+
+  switch (parentRoute) {''');
 
     for (final screen in screens) {
       buffer.writeln("    case '${screen.routeName}':");
+
+      // Check if this screen has subroutes
+      if (screen.hasSubroutes) {
+        buffer.writeln('''
+      // Handle subroutes for ${screen.typeName}
+      if (subRoute != null) {
+        // Pass the subroute to the screen's nested navigator
+        return MaterialPageRoute(
+          builder: (context) => ${screen.typeName}(
+            ${screen.argsParamName != null ? '${screen.argsParamName}: arguments as ${screen.argsTypeName}${screen.requiresArgs ? '' : '?'},' : ''}
+            initialSubRoute: subRoute,
+          ),
+          settings: settings
+        );
+      }''');
+      }
 
       if (screen.argsTypeName != null) {
         final paramName = screen.argsParamName ?? 'args';
@@ -316,7 +406,8 @@ class _ScreenConfig {
   final String routeName;
   final bool isInitial;
   final bool requiresArgs;
-  final String? argsParamName; // Added parameter name field
+  final String? argsParamName;
+  final bool hasSubroutes;
 
   _ScreenConfig({
     required this.typeName,
@@ -325,5 +416,6 @@ class _ScreenConfig {
     this.isInitial = false,
     this.requiresArgs = false,
     this.argsParamName,
+    this.hasSubroutes = false,
   });
 }

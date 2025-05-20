@@ -1,183 +1,98 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_route_generator/flutter_route_generator.dart';
+import 'src/models/route_config.dart';
+import 'src/models/screen_config.dart';
+import 'src/router/routes_map.dart';
 
-/// Configuration for a fallback route
-class FallbackRouteConfig {
-  /// The builder function for creating the fallback screen
-  final Widget Function(BuildContext context, String? routeName) builder;
-
-  /// Optional transition builder for custom animations
-  final RouteTransitionsBuilder? transitionsBuilder;
-
-  /// Whether to maintain the state of the fallback screen when navigating away
-  final bool maintainState;
-
-  /// Constructor for fallback route configuration
-  const FallbackRouteConfig({
-    required this.builder,
-    this.transitionsBuilder,
-    this.maintainState = true,
-  });
-}
-
-/// A central class for route management
+/// Main routes class for the application
 class Routes {
-  static RouteConfig routeConfig = RouteConfig([]);
-  static FallbackRouteConfig? _fallbackRouteConfig;
-
-  /// Initialize routes with screen configurations and an optional fallback route
+  /// Initialize the routes with screen configurations
   static Future<void> initialize(
     List<ScreenConfig> screenConfigs, {
     FallbackRouteConfig? fallbackRouteConfig,
   }) async {
-    routeConfig = RouteConfig(screenConfigs);
-    _fallbackRouteConfig = fallbackRouteConfig;
+    RoutesRegistry.initialize(
+      screenConfigs,
+      fallbackRouteConfig: fallbackRouteConfig,
+    );
   }
-
-  /// Get the fallback route configuration
-  static FallbackRouteConfig? get fallbackRouteConfig => _fallbackRouteConfig;
 
   /// Create a fallback route for unknown routes
   static Route<dynamic> createFallbackRoute(RouteSettings settings) {
-    if (_fallbackRouteConfig?.transitionsBuilder != null) {
-      return PageRouteBuilder(
-        settings: settings,
-        maintainState: _fallbackRouteConfig!.maintainState,
-        pageBuilder: (context, _, __) => _fallbackRouteConfig!.builder(
-          context,
-          settings.name,
-        ),
-        transitionsBuilder: _fallbackRouteConfig!.transitionsBuilder!,
-      );
-    }
-
-    return MaterialPageRoute(
-      settings: settings,
-      maintainState: _fallbackRouteConfig?.maintainState ?? true,
-      builder: (context) =>
-          _fallbackRouteConfig?.builder(
-            context,
-            settings.name,
-          ) ??
-          _defaultNotFoundScreen(context, settings.name),
-    );
+    return RoutesRegistry.instance.createFallbackRoute(settings);
   }
 
-  /// Default not found screen if no fallback is provided
-  static Widget _defaultNotFoundScreen(
-      BuildContext context, String? routeName) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Page Not Found'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Route "$routeName" not found',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Go Back'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Helper method to extract typed arguments
-  static T? getArgs<T>(dynamic arguments) {
-    if (arguments != null && arguments is T) {
-      return arguments;
-    }
-    return null;
-  }
+  /// Get the route configuration
+  static RoutesRegistry get routeConfig => RoutesRegistry.instance;
 }
 
-/// Extension methods for navigation using BuildContext
+/// Extension methods for navigation
 extension NavigationExtension on BuildContext {
-  void push(Type screenType, {dynamic args}) {
-    final screenConfig = _findScreenConfig(screenType);
-    if (screenConfig == null) {
-      throw Exception('Screen $screenType not found in route configurations');
+  /// Navigate to a screen
+  Future<T?> push<T>(Type screenType, {dynamic args}) {
+    final config = RoutesRegistry.instance.getScreenConfigByType(screenType);
+    if (config == null) {
+      throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    // Check if args are required but not provided
-    if (screenConfig.requiresArgs && args == null) {
-      throw ArgumentError(
-          'Screen $screenType requires arguments but none were provided');
-    }
+    final routeName = config.path ??
+        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
 
-    Navigator.of(this).pushNamed(
-      screenConfig.path ?? '/${_getRouteName(screenType)}',
-      arguments: args,
-    );
+    return Navigator.of(this).pushNamed(routeName, arguments: args);
   }
 
-  void pushReplacement(Type screenType, {dynamic args}) {
-    final screenConfig = _findScreenConfig(screenType);
-    if (screenConfig == null) {
-      throw Exception('Screen $screenType not found in route configurations');
+  /// Replace the current screen
+  Future<T?> pushReplacement<T, TO>(Type screenType, {dynamic args}) {
+    final config = RoutesRegistry.instance.getScreenConfigByType(screenType);
+    if (config == null) {
+      throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    // Check if args are required but not provided
-    if (screenConfig.requiresArgs && args == null) {
-      throw ArgumentError(
-          'Screen $screenType requires arguments but none were provided');
-    }
+    final routeName = config.path ??
+        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
 
-    Navigator.of(this).pushReplacementNamed(
-      screenConfig.path ?? '/${_getRouteName(screenType)}',
-      arguments: args,
-    );
+    return Navigator.of(this).pushReplacementNamed(routeName, arguments: args);
   }
 
-  void pushAndRemoveUntil(Type screenType, {dynamic args}) {
-    final screenConfig = _findScreenConfig(screenType);
-    if (screenConfig == null) {
-      throw Exception('Screen $screenType not found in route configurations');
+  /// Clear the stack and navigate
+  Future<T?> pushAndRemoveUntil<T>(Type screenType, {dynamic args}) {
+    final config = RoutesRegistry.instance.getScreenConfigByType(screenType);
+    if (config == null) {
+      throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    // Check if args are required but not provided
-    if (screenConfig.requiresArgs && args == null) {
-      throw ArgumentError(
-          'Screen $screenType requires arguments but none were provided');
-    }
+    final routeName = config.path ??
+        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
 
-    Navigator.of(this).pushNamedAndRemoveUntil(
-      screenConfig.path ?? '/${_getRouteName(screenType)}',
+    return Navigator.of(this).pushNamedAndRemoveUntil(
+      routeName,
       (route) => false,
       arguments: args,
     );
   }
 
+  /// Navigate to a nested route
+  Future<T?> pushNested<T>(Type screenType, String nestedRoute,
+      {dynamic args}) {
+    final config = RoutesRegistry.instance.getScreenConfigByType(screenType);
+    if (config == null) {
+      throw ArgumentError('No screen configuration found for $screenType');
+    }
+
+    final routeName = config.path ??
+        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+
+    // Ensure nestedRoute starts with a slash
+    final formattedNestedRoute =
+        nestedRoute.startsWith('/') ? nestedRoute : '/$nestedRoute';
+
+    return Navigator.of(this).pushNamed(
+      '$routeName$formattedNestedRoute',
+      arguments: args,
+    );
+  }
+
+  /// Go back
   void pop<T>([T? result]) {
     Navigator.of(this).pop(result);
-  }
-
-  /// Find a screen configuration by its type
-  ScreenConfig? _findScreenConfig(Type screenType) {
-    try {
-      return Routes.routeConfig.getScreenConfigByType(screenType);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /// Convert screen type to route name (first letter lowercase)
-  String _getRouteName(Type screenType) {
-    final typeName = screenType.toString();
-    return typeName.substring(0, 1).toLowerCase() + typeName.substring(1);
   }
 }

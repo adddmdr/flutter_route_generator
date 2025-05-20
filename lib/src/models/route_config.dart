@@ -1,59 +1,80 @@
-// lib/src/models/route_config.dart
 import 'package:flutter/material.dart';
 import 'screen_config.dart';
-import '../builders/route_builder.dart';
 
+/// Configuration for fallback routes (404 pages)
+class FallbackRouteConfig {
+  /// Builder function for the fallback route
+  final Widget Function(BuildContext, String?) builder;
+
+  /// Custom transition builder
+  final Widget Function(
+          BuildContext, Animation<double>, Animation<double>, Widget)?
+      transitionsBuilder;
+
+  /// Whether to maintain state when navigating away
+  final bool maintainState;
+
+  /// Create a fallback route configuration
+  const FallbackRouteConfig({
+    required this.builder,
+    this.transitionsBuilder,
+    this.maintainState = true,
+  });
+}
+
+/// Main route configuration class
 class RouteConfig {
+  /// List of all screen configurations
   final List<ScreenConfig> screenConfigs;
 
-  RouteConfig(this.screenConfigs);
+  /// Fallback route configuration
+  final FallbackRouteConfig? fallbackRouteConfig;
 
-  ScreenConfig? getScreenConfigByType(Type screenType) {
-    try {
-      return screenConfigs
-          .firstWhere((config) => config.screenType == screenType);
-    } catch (e) {
-      throw Exception('Screen $screenType not found in route configurations');
-    }
-  }
+  /// Create a route configuration
+  RouteConfig({
+    required this.screenConfigs,
+    this.fallbackRouteConfig,
+  });
 
+  /// Get the initial screen configuration
   ScreenConfig? getInitialScreenConfig() {
-    try {
-      return screenConfigs.firstWhere((config) => config.isInitial);
-    } catch (e) {
-      if (screenConfigs.isNotEmpty) {
-        return screenConfigs.first;
+    for (final config in screenConfigs) {
+      if (config.isInitial) {
+        return config;
       }
-      throw Exception('No initial screen defined in route configurations');
     }
+    return null;
   }
 
-  void push(BuildContext context, Type screenType, {dynamic args}) {
-    final screenConfig = getScreenConfigByType(screenType);
-    if (screenConfig != null) {
-      // Fixed: Pass Type (screenType) instead of ScreenConfig
-      RouteBuilder.push(context, screenType, args: args);
+  /// Get a screen configuration by type
+  ScreenConfig? getScreenConfigByType(Type type) {
+    for (final config in screenConfigs) {
+      if (config.screenType == type) {
+        return config;
+      }
     }
+    return null;
   }
 
-  void pushReplacement(BuildContext context, Type screenType, {dynamic args}) {
-    final screenConfig = getScreenConfigByType(screenType);
-    if (screenConfig != null) {
-      // Fixed: Pass Type (screenType) instead of ScreenConfig
-      RouteBuilder.pushReplacement(context, screenType, args: args);
+  /// Get a screen configuration by path
+  ScreenConfig? getScreenConfigByPath(String path) {
+    // Extract the parent path (everything before the second slash)
+    String parentPath = path;
+    if (path.startsWith('/') && path.substring(1).contains('/')) {
+      final secondSlashIndex = path.indexOf('/', 1);
+      if (secondSlashIndex != -1) {
+        parentPath = path.substring(0, secondSlashIndex);
+      }
     }
-  }
 
-  void pushAndRemoveUntil(BuildContext context, Type screenType,
-      {dynamic args}) {
-    final screenConfig = getScreenConfigByType(screenType);
-    if (screenConfig != null) {
-      // Fixed: Pass Type (screenType) instead of ScreenConfig
-      RouteBuilder.pushAndRemoveUntil(context, screenType, args: args);
+    for (final config in screenConfigs) {
+      final configPath = config.path ??
+          '/${config.screenType.toString().substring(0, 1).toLowerCase()}${config.screenType.toString().substring(1)}';
+
+      if (configPath == parentPath) {
+        return config;
+      }
     }
-  }
-
-  void pop<T>(BuildContext context, [T? result]) {
-    RouteBuilder.pop(context, result);
+    return null;
   }
 }
