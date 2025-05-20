@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/route_config.dart';
 import '../models/screen_config.dart';
 import '../router/routes_map.dart';
 

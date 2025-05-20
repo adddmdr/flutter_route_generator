@@ -110,26 +110,32 @@ class RouteGeneratorBuilder implements Builder {
         if (type is InterfaceType) {
           final element = type.element;
           final source = element.source;
-          if (source != null) {
-            final uri = source.uri.toString();
-            if (!uri.startsWith('dart:') &&
-                !uri.contains('flutter_route_generator') &&
-                uri != 'package:flutter/material.dart') {
-              imports.add(uri);
-            }
+          final uri = source.uri.toString();
+          if (!uri.startsWith('dart:') &&
+              !uri.contains('flutter_route_generator') &&
+              uri != 'package:flutter/material.dart') {
+            imports.add(uri);
           }
         }
       }
 
       // Also add any imports from the original file that might be needed
       try {
+        // Calculate the URI of the generated file to avoid importing it
+        final generatedFilePath = outputId.path.replaceFirst('lib/', '');
+        final generatedFileUri =
+            'package:${buildStep.inputId.package}/$generatedFilePath';
+
         for (final import in library.libraryImports) {
           final uri = import.importedLibrary?.source.uri.toString();
           if (uri != null &&
               !uri.startsWith('dart:') &&
               !uri.contains('flutter_route_generator') &&
               uri != 'package:flutter/material.dart') {
-            imports.add(uri);
+            // Skip importing the generated file itself or any other .routes.dart files
+            if (uri != generatedFileUri && !uri.endsWith('.routes.dart')) {
+              imports.add(uri);
+            }
           }
         }
       } catch (e) {
