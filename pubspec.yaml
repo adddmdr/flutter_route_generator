@@ -12,6 +12,7 @@ dependencies:
   build: ^2.3.1
   source_gen: ^2.0.0
   analyzer: ^6.11.0
+  logger: ^2.5.0
 
 dev_dependencies:
   flutter_test:
@@ -25,22 +26,17 @@ builders:
   route_generator:
     import: "package:flutter_route_generator/builder.dart"
     builder_factories: ["routeGeneratorFactory"]
-    build_extensions: {".dart": [".routes.dart"]}
+    build_extensions: {".dart": [".routes.g.dart"]}
     auto_apply: dependents
     build_to: source
     defaults:
       generate_for:
         include:
           - lib/**.dart
-          - web/**.dart
       options:
         auto_discovery: true
     applies_builders: ["source_gen:combining_builder"]
     
-    # Configuration to keep the builder from conflicting with source_gen
-    required_inputs: [".dart"]
-    runs_before: ["source_gen:combining_builder"]
-
   route_registry_generator:
     import: "package:flutter_route_generator/builder.dart"
     builder_factories: ["registryGeneratorFactory"]
