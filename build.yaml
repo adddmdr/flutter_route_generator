@@ -2,7 +2,7 @@ builders:
   route_generator:
     import: "package:flutter_route_generator/builder.dart"
     builder_factories: ["routeGeneratorFactory"]
-    build_extensions: {".dart": [".g.dart"]}
+    build_extensions: {".dart": [".routes.g.dart"]}
     auto_apply: dependents
     build_to: source
     applies_builders: ["source_gen|combining_builder"]

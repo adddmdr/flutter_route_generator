@@ -23,8 +23,7 @@ class RegistryGeneratorBuilder implements Builder {
     // Check each file for route configs
     await for (final input in buildStep.findAssets(dartFiles)) {
       // Skip generated files
-      if (input.path.endsWith('.g.dart') ||
-          input.path.endsWith('.routes.dart')) {
+      if (input.path.endsWith('.g.dart')) {
         continue;
       }
 

@@ -9,14 +9,14 @@ import 'package:source_gen/source_gen.dart';
 class RouteGeneratorBuilder implements Builder {
   @override
   Map<String, List<String>> get buildExtensions => {
-        '.dart': ['.routes.dart'],
+        '.dart': ['.routes.g.dart'],
       };
 
   @override
   FutureOr<void> build(BuildStep buildStep) async {
     // Regular file processing for individual route configs
     final inputId = buildStep.inputId;
-    final outputId = inputId.changeExtension('.routes.dart');
+    final outputId = inputId.changeExtension('.routes.g.dart');
 
     // Quick check if the file might contain our annotation
     final content = await buildStep.readAsString(inputId);
@@ -132,8 +132,8 @@ class RouteGeneratorBuilder implements Builder {
               !uri.startsWith('dart:') &&
               !uri.contains('flutter_route_generator') &&
               uri != 'package:flutter/material.dart') {
-            // Skip importing the generated file itself or any other .routes.dart files
-            if (uri != generatedFileUri && !uri.endsWith('.routes.dart')) {
+            // Skip importing the generated file itself or any other .g.dart files
+            if (uri != generatedFileUri && !uri.endsWith('.g.dart')) {
               imports.add(uri);
             }
           }
@@ -237,6 +237,24 @@ class RouteGeneratorBuilder implements Builder {
       await buildStep.writeAsString(outputId, generatedCode.toString());
     } catch (e) {
       print('Error generating routes for ${inputId.path}: $e');
+
+      // Write a minimal file with error information
+      final errorCode = StringBuffer();
+      errorCode.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
+      errorCode.writeln(
+          '// **************************************************************************');
+      errorCode.writeln('// RouteGenerator - ERROR OCCURRED');
+      errorCode.writeln(
+          '// **************************************************************************');
+      errorCode.writeln();
+      errorCode.writeln("import 'package:flutter/material.dart';");
+      errorCode
+          .writeln("import 'package:flutter_route_generator/routes.dart';");
+      errorCode.writeln();
+      errorCode.writeln('// Error occurred during route generation:');
+      errorCode.writeln('// $e');
+
+      await buildStep.writeAsString(outputId, errorCode.toString());
     }
   }
 
@@ -366,9 +384,9 @@ Route<dynamic>? $functionName(RouteSettings settings) {
           );
         }
       } else {
-        // For screens without arguments
+        // For screens without arguments - removed const keyword
         buffer.writeln(
-            "      return MaterialPageRoute(builder: (context) => const ${screen.typeName}(), settings: settings);");
+            "      return MaterialPageRoute(builder: (context) => ${screen.typeName}(), settings: settings);");
       }
     }
 
