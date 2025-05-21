@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_route_generator/flutter_route_generator.dart';
 
+/// Central routing class for the application
 class Routes {
   static RouteConfig? _routeConfig;
 
@@ -12,24 +13,44 @@ class Routes {
     return _routeConfig!;
   }
 
+  /// Initialize the routing system with the given screen configurations
+  ///
+  /// This also initializes the TransitionsRegistry automatically
   static void initialize(
     List<ScreenConfig> screenConfigs, {
     FallbackRouteConfig? fallbackRouteConfig,
   }) {
+    // Initialize the transitions registry automatically
+    TransitionsRegistry.initialize();
+
+    // Set up the route configuration
     _routeConfig = RouteConfig(
       screenConfigs: screenConfigs,
       fallbackRouteConfig: fallbackRouteConfig,
     );
   }
 
+  /// Create a fallback route for when no matching route is found
   static Route<dynamic> createFallbackRoute(RouteSettings settings) {
     if (_routeConfig?.fallbackRouteConfig != null) {
-      return PageRouteBuilder(
+      // Use the custom fallback if provided
+      final fallbackConfig = _routeConfig!.fallbackRouteConfig!;
+
+      if (fallbackConfig.transitionsBuilder != null) {
+        return PageRouteBuilder(
+          settings: settings,
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return fallbackConfig.builder(context, settings.name);
+          },
+          transitionsBuilder: fallbackConfig.transitionsBuilder!,
+          maintainState: fallbackConfig.maintainState,
+        );
+      }
+
+      return MaterialPageRoute(
         settings: settings,
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return _routeConfig!.fallbackRouteConfig!
-              .builder(context, settings.name);
-        },
+        builder: (context) => fallbackConfig.builder(context, settings.name),
+        maintainState: fallbackConfig.maintainState,
       );
     }
 

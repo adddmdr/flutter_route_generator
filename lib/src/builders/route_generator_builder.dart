@@ -18,17 +18,12 @@ class RouteGeneratorBuilder implements Builder {
     final inputId = buildStep.inputId;
     final outputId = inputId.changeExtension('.routes.g.dart');
 
-    print('RouteGeneratorBuilder: Processing file: ${inputId.path}');
-
     // Quick check if the file might contain our annotation
     final content = await buildStep.readAsString(inputId);
     if (!content.contains('@routeConfig') &&
         !content.contains('@RouteConfig')) {
-      print('RouteGeneratorBuilder: No annotations found in ${inputId.path}');
       return; // Skip if annotation is not found
     }
-
-    print('RouteGeneratorBuilder: Found annotation in ${inputId.path}');
 
     // Proceed with normal route generation for this file
     await _generateRoutes(buildStep, inputId, outputId);
@@ -46,12 +41,12 @@ class RouteGeneratorBuilder implements Builder {
         TypeChecker.fromRuntime(RouteConfig),
       );
 
-      print(
-          'RouteGeneratorBuilder: Found ${annotatedElements.length} annotated elements in ${inputId.path}');
-
       if (annotatedElements.isEmpty) {
         return; // No annotated elements found
       }
+
+      // Collection of configuration errors
+      final configErrors = <String>[];
 
       // Generate code for the annotated elements
       final generatedCode = StringBuffer();
@@ -79,8 +74,6 @@ class RouteGeneratorBuilder implements Builder {
       for (final annotatedElement in annotatedElements) {
         final element = annotatedElement.element;
         if (element is! ClassElement) {
-          print(
-              'RouteGeneratorBuilder: Element ${element.name} is not a ClassElement, skipping');
           continue;
         }
 
@@ -94,46 +87,32 @@ class RouteGeneratorBuilder implements Builder {
         }
 
         if (configField == null) {
-          print(
-              'RouteGeneratorBuilder: No screenConfigs field found in ${element.name}');
           continue;
         }
 
         // Get the screenConfigs list
         final constantValue = configField.computeConstantValue();
         if (constantValue == null) {
-          print(
-              'RouteGeneratorBuilder: Could not compute constant value for screenConfigs in ${element.name}');
           continue;
         }
 
         final list = constantValue.toListValue();
         if (list == null || list.isEmpty) {
-          print(
-              'RouteGeneratorBuilder: screenConfigs is empty in ${element.name}');
           continue;
         }
-
-        print(
-            'RouteGeneratorBuilder: Found ${list.length} screen configs in ${element.name}');
 
         // Process each screen config to collect types
         for (final item in list) {
           final screenType = item.getField('screenType')?.toTypeValue();
           if (screenType == null) {
-            print('RouteGeneratorBuilder: Missing screenType in a config item');
             continue;
           }
 
           screenTypes.add(screenType);
-          print(
-              'RouteGeneratorBuilder: Added screen type: ${screenType.getDisplayString(withNullability: false)}');
 
           final argsType = item.getField('argsType')?.toTypeValue();
           if (argsType != null) {
             argsTypes.add(argsType);
-            print(
-                'RouteGeneratorBuilder: Added args type: ${argsType.getDisplayString(withNullability: false)}');
           }
         }
       }
@@ -151,7 +130,6 @@ class RouteGeneratorBuilder implements Builder {
               !uri.contains('flutter_route_generator') &&
               uri != 'package:flutter/material.dart') {
             imports.add(uri);
-            print('RouteGeneratorBuilder: Added import for type: $uri');
           }
         }
       }
@@ -172,13 +150,11 @@ class RouteGeneratorBuilder implements Builder {
             // Skip importing the generated file itself or any other .g.dart files
             if (uri != generatedFileUri && !uri.endsWith('.g.dart')) {
               imports.add(uri);
-              print(
-                  'RouteGeneratorBuilder: Added import from original file: $uri');
             }
           }
         }
       } catch (e) {
-        print('Error extracting imports: $e');
+        // Silently continue if import extraction fails
       }
 
       // Add all the imports to the generated file
@@ -213,6 +189,8 @@ class RouteGeneratorBuilder implements Builder {
 
         // Process each screen config
         final screens = <_ScreenConfig>[];
+        final warningMessages = <String>[];
+
         for (final item in list) {
           final screenType = item.getField('screenType')?.toTypeValue();
           if (screenType == null) continue;
@@ -238,8 +216,6 @@ class RouteGeneratorBuilder implements Builder {
             final nameField = transitionField.getField('name');
             if (nameField != null) {
               transitionName = nameField.toStringValue();
-              print(
-                  'RouteGeneratorBuilder: Found transition: $transitionName for screen: $screenTypeName');
             }
           }
 
@@ -253,22 +229,39 @@ class RouteGeneratorBuilder implements Builder {
                 _findConstructorParamForType(screenType, argsType);
             argsParamName = paramInfo.name;
             argsParamExists = paramInfo.exists;
-            print(
-                'RouteGeneratorBuilder: Found args parameter: $argsParamName for screen: $screenTypeName, exists: $argsParamExists');
 
-            // Issue a proper warning if the args are required but the parameter doesn't exist
+            // Check for critical errors: requiresArgs=true but no parameter
             if (requiresArgs && !argsParamExists) {
-              print(
-                  'WARNING: ${screenTypeName} is configured to require ${argsTypeName} but does not have a constructor parameter for it. '
-                  'This will cause runtime errors. Please update either the ScreenConfig to set requiresArgs=false or add the parameter to the screen class.');
+              final error =
+                  'ERROR: ${screenTypeName} is configured to require ${argsTypeName} but does not have a constructor parameter for it. '
+                  'This will cause runtime errors. Please update either the ScreenConfig to set requiresArgs=false or add the parameter to the screen class.';
+              configErrors.add(error);
             }
+          } else if (requiresArgs) {
+            // If requiresArgs is true but no argsType is specified - this is a critical error
+            final error =
+                'ERROR: ${screenTypeName} has requiresArgs=true but no argsType specified. '
+                'This configuration is invalid.';
+            configErrors.add(error);
           }
 
           // Check if the screen has an initialSubRoute parameter
           hasInitialSubRouteParam = _hasInitialSubRouteParam(screenType);
+
+          // Warning: has subroutes but no initialSubRoute parameter
           if (hasSubroutes && !hasInitialSubRouteParam) {
-            print(
-                'WARNING: ${screenTypeName} has subroutes configured but does not have an initialSubRoute parameter.');
+            final warning =
+                'WARNING: ${screenTypeName} has subroutes configured but does not have an initialSubRoute parameter. '
+                'Subroutes will not work correctly.';
+            warningMessages.add(warning);
+          }
+
+          // Warning: has argsType but no parameter for it
+          if (argsType != null && !argsParamExists && !requiresArgs) {
+            final warning =
+                'WARNING: ${screenTypeName} has argsType set to ${argsTypeName} but does not have a matching constructor parameter. '
+                'The arguments will be ignored.';
+            warningMessages.add(warning);
           }
 
           // Format the route name with proper casing: HomeScreen -> /homeScreen
@@ -289,48 +282,62 @@ class RouteGeneratorBuilder implements Builder {
             hasInitialSubRouteParam: hasInitialSubRouteParam,
             transitionName: transitionName,
           ));
+        }
 
-          print(
-              'RouteGeneratorBuilder: Added screen config: $screenTypeName, route: $routeName');
+        // If there are configuration errors, fail the build
+        if (configErrors.isNotEmpty) {
+          final errorMessage = configErrors.join('\n');
+          throw Exception('Route configuration errors:\n$errorMessage');
+        }
+
+        // Add warnings to the generated file as comments
+        if (warningMessages.isNotEmpty) {
+          generatedCode.writeln('// CONFIGURATION WARNINGS:');
+          for (final warning in warningMessages) {
+            generatedCode.writeln('// $warning');
+          }
+          generatedCode.writeln();
         }
 
         // Generate route code
         if (screens.isNotEmpty) {
           final routeCode = _generateRouteOnlyCode(screens, element.name);
           generatedCode.writeln(routeCode);
-          print(
-              'RouteGeneratorBuilder: Generated route code for ${element.name}, length: ${routeCode.length}');
         }
       }
 
       // Write the generated code to the output file
       final finalCode = generatedCode.toString();
       await buildStep.writeAsString(outputId, finalCode);
-      print(
-          'RouteGeneratorBuilder: Successfully wrote generated code to ${outputId.path}, length: ${finalCode.length}');
     } catch (e, stackTrace) {
-      print('Error generating routes for ${inputId.path}: $e');
-      print('Stack trace: $stackTrace');
+      // Re-throw with a clear message to stop the build
+      if (e is Exception) {
+        // The exception already has our custom message
+        rethrow;
+      } else {
+        // Create an error file for inspection
+        final errorCode = StringBuffer();
+        errorCode.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
+        errorCode.writeln(
+            '// **************************************************************************');
+        errorCode.writeln('// RouteGenerator - ERROR OCCURRED');
+        errorCode.writeln(
+            '// **************************************************************************');
+        errorCode.writeln();
+        errorCode.writeln("import 'package:flutter/material.dart';");
+        errorCode
+            .writeln("import 'package:flutter_route_generator/routes.dart';");
+        errorCode.writeln();
+        errorCode.writeln('// Error occurred during route generation:');
+        errorCode.writeln('// $e');
+        errorCode.writeln('// Stack trace:');
+        errorCode.writeln('// $stackTrace');
 
-      // Write a minimal file with error information
-      final errorCode = StringBuffer();
-      errorCode.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
-      errorCode.writeln(
-          '// **************************************************************************');
-      errorCode.writeln('// RouteGenerator - ERROR OCCURRED');
-      errorCode.writeln(
-          '// **************************************************************************');
-      errorCode.writeln();
-      errorCode.writeln("import 'package:flutter/material.dart';");
-      errorCode
-          .writeln("import 'package:flutter_route_generator/routes.dart';");
-      errorCode.writeln();
-      errorCode.writeln('// Error occurred during route generation:');
-      errorCode.writeln('// $e');
-      errorCode.writeln('// Stack trace:');
-      errorCode.writeln('// $stackTrace');
+        await buildStep.writeAsString(outputId, errorCode.toString());
 
-      await buildStep.writeAsString(outputId, errorCode.toString());
+        // Throw a new exception to stop the build
+        throw Exception('Route generation failed: $e\n$stackTrace');
+      }
     }
   }
 
