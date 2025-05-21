@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/screen_config.dart';
 import '../models/route_config.dart';
 import '../generators/route_generator.dart';
+import '../transitions/transitions.dart'; // Add this import
 import 'routes_map.dart';
 
 /// Central router class for the application.
@@ -38,6 +39,11 @@ class AppRouter {
       throw Exception('No route found for screen type: $screenType');
     }
 
+    // Handle initial screen
+    if (config.isInitial) {
+      return '/';
+    }
+
     return config.path ??
         '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
   }
@@ -57,6 +63,14 @@ class AppRouter {
       // Try to find a matching route in the registered screen configs
       final routesRegistry = RoutesRegistry.instance;
 
+      // Special handling for root path
+      if (settings.name == '/') {
+        final initialConfig = routesRegistry.getInitialScreenConfig();
+        if (initialConfig != null) {
+          return _createRouteForConfig(initialConfig, settings, null);
+        }
+      }
+
       // Get all registered screen types
       final screenTypes = routesRegistry.getAllScreenTypes();
 
@@ -64,61 +78,23 @@ class AppRouter {
         final config = routesRegistry.getScreenConfigByType(screenType);
         if (config == null) continue;
 
-        final routePath = config.path ??
-            '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+        final routePath = config.isInitial
+            ? '/'
+            : (config.path ??
+                '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}');
 
         if (settings.name == routePath ||
             (settings.name != null &&
                 settings.name!.startsWith('$routePath/'))) {
-          // Use custom transition if provided
-          if (config.transitionsBuilder != null) {
-            return PageRouteBuilder(
-              settings: settings,
-              pageBuilder: (context, animation, secondaryAnimation) {
-                // Handle potential subroute
-                String? subRoute;
-                if (settings.name != null &&
-                    settings.name != routePath &&
-                    settings.name!.startsWith('$routePath/')) {
-                  subRoute = settings.name!.substring(routePath.length);
-                }
-
-                // Create the screen with appropriate arguments
-                if (subRoute != null && config.subroutes != null) {
-                  // Screen with subroute
-                  return _createWidgetWithSubroute(
-                      config.screenType, settings.arguments, subRoute);
-                } else {
-                  // Regular screen
-                  return _createWidget(config.screenType, settings.arguments);
-                }
-              },
-              transitionsBuilder: config.transitionsBuilder!,
-            );
+          // Extract potential subroute
+          String? subRoute;
+          if (settings.name != null &&
+              settings.name != routePath &&
+              settings.name!.startsWith('$routePath/')) {
+            subRoute = settings.name!.substring(routePath.length);
           }
 
-          return MaterialPageRoute(
-            settings: settings,
-            builder: (context) {
-              // Handle potential subroute
-              String? subRoute;
-              if (settings.name != null &&
-                  settings.name != routePath &&
-                  settings.name!.startsWith('$routePath/')) {
-                subRoute = settings.name!.substring(routePath.length);
-              }
-
-              // Create the screen with appropriate arguments
-              if (subRoute != null && config.subroutes != null) {
-                // Screen with subroute
-                return _createWidgetWithSubroute(
-                    config.screenType, settings.arguments, subRoute);
-              } else {
-                // Regular screen
-                return _createWidget(config.screenType, settings.arguments);
-              }
-            },
-          );
+          return _createRouteForConfig(config, settings, subRoute);
         }
       }
 
@@ -136,10 +112,54 @@ class AppRouter {
     }
   }
 
+  // Helper method to create a route for a config
+  static Route<dynamic> _createRouteForConfig(
+      ScreenConfig config, RouteSettings settings, String? subRoute) {
+    // Check if this screen has a named transition
+    if (config.transition != null) {
+      // Get transition from registry
+      final transitionBuilder =
+          TransitionsRegistry.get(config.transition!.name);
+      if (transitionBuilder != null) {
+        return PageRouteBuilder(
+          settings: settings,
+          pageBuilder: (context, animation, secondaryAnimation) {
+            // Create the screen with appropriate arguments
+            if (subRoute != null && config.subroutes != null) {
+              // Screen with subroute
+              return _createWidgetWithSubroute(
+                  config.screenType, settings.arguments, subRoute);
+            } else {
+              // Regular screen
+              return _createWidget(config.screenType, settings.arguments);
+            }
+          },
+          transitionsBuilder: transitionBuilder,
+        );
+      }
+    }
+
+    // Fall back to MaterialPageRoute if no transition specified or found
+    return MaterialPageRoute(
+      settings: settings,
+      builder: (context) {
+        // Create the screen with appropriate arguments
+        if (subRoute != null && config.subroutes != null) {
+          // Screen with subroute
+          return _createWidgetWithSubroute(
+              config.screenType, settings.arguments, subRoute);
+        } else {
+          // Regular screen
+          return _createWidget(config.screenType, settings.arguments);
+        }
+      },
+    );
+  }
+
   // Helper method to create a widget with arguments
   static Widget _createWidget(Type type, dynamic arguments) {
     // This is a simplified version - in a real implementation,
-    // you would use reflection or code generation
+    // you would use code generation
     return Scaffold(
       appBar: AppBar(title: Text(type.toString())),
       body: Center(
@@ -152,7 +172,7 @@ class AppRouter {
   static Widget _createWidgetWithSubroute(
       Type type, dynamic arguments, String subRoute) {
     // This is a simplified version - in a real implementation,
-    // you would use reflection or code generation
+    // you would use code generation
     return Scaffold(
       appBar: AppBar(title: Text(type.toString())),
       body: Center(

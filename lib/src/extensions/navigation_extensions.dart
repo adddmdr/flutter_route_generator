@@ -8,8 +8,14 @@ extension NavigationExtension on BuildContext {
       throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    final routeName = config.path ??
-        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    // Get the correct path based on the config
+    String routeName;
+    if (config.isInitial) {
+      routeName = '/'; // Handle initial screen specially - always '/'
+    } else {
+      routeName = config.path ??
+          '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    }
 
     return Navigator.of(this).pushNamed(routeName, arguments: args);
   }
@@ -20,8 +26,14 @@ extension NavigationExtension on BuildContext {
       throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    final routeName = config.path ??
-        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    // Get the correct path based on the config
+    String routeName;
+    if (config.isInitial) {
+      routeName = '/'; // Handle initial screen specially - always '/'
+    } else {
+      routeName = config.path ??
+          '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    }
 
     return Navigator.of(this).pushReplacementNamed(routeName, arguments: args);
   }
@@ -32,8 +44,14 @@ extension NavigationExtension on BuildContext {
       throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    final routeName = config.path ??
-        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    // Get the correct path based on the config
+    String routeName;
+    if (config.isInitial) {
+      routeName = '/'; // Handle initial screen specially - always '/'
+    } else {
+      routeName = config.path ??
+          '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    }
 
     return Navigator.of(this).pushNamedAndRemoveUntil(
       routeName,

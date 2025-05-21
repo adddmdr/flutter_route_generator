@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/screen_config.dart';
 import '../router/routes_map.dart';
+import '../transitions/transitions.dart'; // Add this import
 
 /// Utility class for building routes
 class RouteBuilder {
@@ -22,17 +23,23 @@ class RouteBuilder {
       }
     }
 
-    // Use custom transition if provided, otherwise use MaterialPageRoute
-    if (config.transitionsBuilder != null) {
-      return PageRouteBuilder(
-        settings: settings,
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return _buildScreenWidget(config, arguments, subRoute);
-        },
-        transitionsBuilder: config.transitionsBuilder!,
-      );
+    // Check if this screen has a named transition
+    if (config.transition != null) {
+      // Get transition from registry
+      final transitionBuilder =
+          TransitionsRegistry.get(config.transition!.name);
+      if (transitionBuilder != null) {
+        return PageRouteBuilder(
+          settings: settings,
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return _buildScreenWidget(config, arguments, subRoute);
+          },
+          transitionsBuilder: transitionBuilder,
+        );
+      }
     }
 
+    // Fall back to MaterialPageRoute if no transition specified or found
     return MaterialPageRoute(
       settings: settings,
       builder: (context) => _buildScreenWidget(config, arguments, subRoute),
@@ -47,13 +54,50 @@ class RouteBuilder {
   ) {
     final screenType = config.screenType;
 
-    // This implementation will be replaced by code generation
-    // For now, return a placeholder widget
+    // Check if this is a screen with subroutes
+    if (subRoute != null &&
+        config.subroutes != null &&
+        config.subroutes!.isNotEmpty) {
+      // Try to create a widget with initialSubRoute parameter
+      try {
+        // This is a simplified approach - in a real implementation,
+        // you would use code generation to create the widget
+        final widget =
+            _createWidgetWithSubroute(screenType, arguments, subRoute);
+        if (widget != null) {
+          return widget;
+        }
+      } catch (_) {
+        // Fall back to regular widget creation if subroute handling fails
+      }
+    }
+
+    // Create a regular widget with arguments
+    return _createWidget(screenType, arguments);
+  }
+
+  /// Create a widget with arguments
+  static Widget _createWidget(Type type, dynamic arguments) {
+    // This is a simplified version - in a real implementation,
+    // you would use code generation
     return Scaffold(
-      appBar: AppBar(title: Text(screenType.toString())),
+      appBar: AppBar(title: Text(type.toString())),
+      body: Center(
+        child: Text('Screen: ${type.toString()}\nArguments: $arguments'),
+      ),
+    );
+  }
+
+  /// Create a widget with subroute
+  static Widget? _createWidgetWithSubroute(
+      Type type, dynamic arguments, String subRoute) {
+    // This is a simplified version - in a real implementation,
+    // you would use code generation
+    return Scaffold(
+      appBar: AppBar(title: Text(type.toString())),
       body: Center(
         child: Text(
-            'Screen: ${screenType.toString()}\nArguments: $arguments\nSubroute: $subRoute'),
+            'Screen: ${type.toString()}\nArguments: $arguments\nSubroute: $subRoute'),
       ),
     );
   }
@@ -67,8 +111,13 @@ class RouteBuilder {
       throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    final routeName = config.path ??
-        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    String routeName;
+    if (config.isInitial) {
+      routeName = '/'; // Initial screen is always root path
+    } else {
+      routeName = config.path ??
+          '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    }
 
     return Navigator.of(context).pushNamed(routeName, arguments: args);
   }
@@ -83,8 +132,13 @@ class RouteBuilder {
       throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    final routeName = config.path ??
-        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    String routeName;
+    if (config.isInitial) {
+      routeName = '/'; // Initial screen is always root path
+    } else {
+      routeName = config.path ??
+          '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    }
 
     return Navigator.of(context)
         .pushReplacementNamed(routeName, arguments: args);
@@ -99,8 +153,13 @@ class RouteBuilder {
       throw ArgumentError('No screen configuration found for $screenType');
     }
 
-    final routeName = config.path ??
-        '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    String routeName;
+    if (config.isInitial) {
+      routeName = '/'; // Initial screen is always root path
+    } else {
+      routeName = config.path ??
+          '/${screenType.toString().substring(0, 1).toLowerCase()}${screenType.toString().substring(1)}';
+    }
 
     return Navigator.of(context).pushNamedAndRemoveUntil(
       routeName,

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter_route_generator/route_config_annotation.dart';
 
 /// Configuration for a screen in the application
 class ScreenConfig {
@@ -20,10 +20,10 @@ class ScreenConfig {
   /// List of subroutes for this screen (for nested navigation)
   final List<ScreenConfig>? subroutes;
 
-  /// Custom transition builder for this route
-  final Widget Function(
-          BuildContext, Animation<double>, Animation<double>, Widget)?
-      transitionsBuilder;
+  /// Custom transition for this route
+  final TransitionName? transition;
+
+  // Removed transitionsBuilder since it's not const-compatible
 
   /// Create a screen configuration
   const ScreenConfig({
@@ -33,6 +33,6 @@ class ScreenConfig {
     this.isInitial = false,
     this.requiresArgs = false,
     this.subroutes,
-    this.transitionsBuilder,
+    this.transition,
   });
 }

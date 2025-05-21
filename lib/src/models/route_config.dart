@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screen_config.dart';
+import 'package:flutter_route_generator/flutter_route_generator.dart';
 
 /// Configuration for fallback routes (404 pages)
 class FallbackRouteConfig {
@@ -58,6 +58,16 @@ class RouteConfig {
 
   /// Get a screen configuration by path
   ScreenConfig? getScreenConfigByPath(String path) {
+    // Special handling for root path ('/')
+    if (path == '/') {
+      // Find the initial screen config
+      for (final config in screenConfigs) {
+        if (config.isInitial) {
+          return config;
+        }
+      }
+    }
+
     // Extract the parent path (everything before the second slash)
     String parentPath = path;
     if (path.startsWith('/') && path.substring(1).contains('/')) {
